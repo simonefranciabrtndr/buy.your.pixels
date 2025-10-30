@@ -1,0 +1,524 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+.fullscreen-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  cursor: crosshair;
+}
+
+/* === Liquid Glass Popup === */
+.selection-popup {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 50;
+  animation: fadeIn 0.3s ease;
+}
+
+.popup-content {
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 16px 28px;
+  color: #e6f1ff;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+  font-size: 18px;
+  text-align: right;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.popup-line {
+  font-weight: 400;
+  opacity: 0.9;
+}
+
+.popup-price {
+  font-weight: 600;
+  font-size: 22px;
+  margin-top: 6px;
+  color: #ffffff;
+  text-shadow: 0 0 10px rgba(255,255,255,0.4);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.fade-out {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+.selection-popup {
+  position: fixed;
+  top: 30px;
+  right: 30px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 16px 22px;
+  color: #fff;
+  font-family: "SF Pro Display", -apple-system, sans-serif;
+  backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.btn-glass {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 12px;
+  padding: 6px 14px;
+  margin-left: 10px;
+  color: white;
+  font-family: "SF Pro Display", sans-serif;
+  cursor: pointer;
+  backdrop-filter: blur(15px);
+  transition: all 0.25s ease;
+}
+
+.btn-glass:hover {
+  background: rgba(255,255,255,0.25);
+  transform: scale(1.05);
+}
+
+.btn-glass.confirm {
+  background: rgba(0,122,255,0.25);
+}
+
+.glass-input {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 8px;
+  font-size: 15px;
+  color: #fff;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(10px);
+  outline: none;
+  font-family: "SF Pro Display", sans-serif;
+}
+
+.glass-input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+
+.selection-popup {
+  position: fixed;
+  top: 30px;
+  right: 30px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 22px;
+  padding: 18px 22px;
+  color: #fff;
+  font-family: "SF Pro Display", -apple-system, sans-serif;
+  backdrop-filter: blur(18px) saturate(180%);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+  transform-origin: top right;
+  transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.selection-popup.small {
+  width: 260px;
+  height: auto;
+}
+
+.selection-popup.large {
+  width: 360px;
+  height: auto;
+  backdrop-filter: blur(22px) saturate(200%);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+}
+
+.popup-inner {
+  transition: opacity 0.4s ease-in-out;
+}
+
+.fade-in {
+  opacity: 1;
+}
+
+.fade-out {
+  opacity: 0;
+}
+
+.btn-glass {
+  background: rgba(255,255,255,0.15);
+  border: none;
+  border-radius: 12px;
+  padding: 6px 14px;
+  margin-left: 10px;
+  color: white;
+  font-family: "SF Pro Display", sans-serif;
+  cursor: pointer;
+  backdrop-filter: blur(15px);
+  transition: all 0.25s ease;
+}
+
+.btn-glass.confirm {
+  background: rgba(0,122,255,0.25);
+}
+
+.glass-input {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 8px;
+  font-size: 15px;
+  color: #fff;
+  background: rgba(255,255,255,0.08);
+  backdrop-filter: blur(10px);
+  outline: none;
+  font-family: "SF Pro Display", sans-serif;
+}
+
+.glass-input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+
+/* 🔮 Liquid Glow Effect - iOS26 style */
+.selection-popup::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+      80% 100% at 30% 0%,
+      rgba(255, 255, 255, 0.3),
+      transparent
+    ),
+    radial-gradient(
+      60% 120% at 70% 100%,
+      rgba(0, 140, 255, 0.25),
+      transparent
+    );
+  opacity: 0.5;
+  mix-blend-mode: screen;
+  filter: blur(25px);
+  animation: liquid-glow 6s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes liquid-glow {
+  0% {
+    transform: translate(-4px, -2px) scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate(4px, 2px) scale(1.02);
+    opacity: 0.65;
+  }
+  100% {
+    transform: translate(-2px, -1px) scale(1.01);
+    opacity: 0.5;
+  }
+}
+
+/* 🌊 Tap Ripple Effect for iOS26-style buttons */
+.btn-glass {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  transition: transform 0.15s ease-out;
+}
+
+.btn-glass:active {
+  transform: scale(0.97);
+}
+
+.btn-glass::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.45) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.btn-glass:active::after {
+  width: 200%;
+  height: 200%;
+  opacity: 1;
+  animation: ripple-expand 0.6s ease-out forwards;
+}
+
+@keyframes ripple-expand {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3);
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* 💡 Ambient Hover Glow for Liquid Glass buttons */
+.btn-glass:hover {
+  background: rgba(255,255,255,0.25);
+  box-shadow: 0 0 12px rgba(0,150,255,0.5),
+              0 0 25px rgba(0,122,255,0.35) inset;
+  transform: scale(1.04);
+  transition: all 0.25s ease-in-out;
+}
+
+.btn-glass.confirm:hover {
+  background: rgba(0,122,255,0.35);
+  box-shadow: 0 0 18px rgba(0,180,255,0.65),
+              0 0 28px rgba(0,122,255,0.35) inset;
+}
+
+.btn-glass.cancel:hover {
+  background: rgba(255,255,255,0.25);
+  box-shadow: 0 0 10px rgba(255,255,255,0.4),
+              0 0 18px rgba(255,255,255,0.2) inset;
+}
+
+.upload-zone {
+  margin-top: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 2px dashed rgba(255,255,255,0.25);
+  border-radius: 18px;
+  padding: 20px;
+  text-align: center;
+  color: rgba(255,255,255,0.7);
+  font-family: "SF Pro Display", sans-serif;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease-in-out;
+  cursor: pointer;
+}
+
+.upload-zone:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(0,150,255,0.5);
+  transform: scale(1.02);
+}
+
+.upload-preview {
+  width: 100%;
+  border-radius: 14px;
+  object-fit: contain;
+  max-height: 180px;
+  transition: all 0.4s ease;
+}
+
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  background: rgba(255,255,255,0.12);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  color: white;
+  font-size: 18px;
+  font-weight: 400;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 8px rgba(255,255,255,0.3);
+  transition: all 0.25s ease-in-out;
+}
+
+.close-btn:hover {
+  background: rgba(255,255,255,0.25);
+  box-shadow: 0 0 14px rgba(0,122,255,0.5),
+              0 0 20px rgba(255,255,255,0.4) inset;
+  transform: scale(1.08);
+}
+
+.close-btn:active {
+  transform: scale(0.95);
+}
+
+.selection-popup {
+  z-index: 1000;            /* sopra il canvas */
+  pointer-events: auto;     /* assicurati che riceva i click */
+  position: fixed;          /* già impostato anche inline */
+}
+
+.popup-inner {
+  position: relative;
+  z-index: 1;
+}
+
+.close-btn {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;               /* sopra al contenuto */
+  background: rgba(255,255,255,0.12);
+  border: none;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  color: white;
+  font-size: 18px;
+  font-weight: 400;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 0 8px rgba(255,255,255,0.3);
+  transition: all 0.25s ease-in-out;
+  pointer-events: auto;     /* garantisce il click */
+}
+
+.crop-canvas {
+  width: 100%;
+  border-radius: 12px;
+  margin-top: 10px;
+  background: rgba(255,255,255,0.05);
+  cursor: grab;
+  transition: all 0.2s ease;
+}
+
+.crop-canvas:active {
+  cursor: grabbing;
+}
+
+.zoom-slider {
+  width: 100%;
+  margin-top: 12px;
+  accent-color: rgba(0,122,255,0.9);
+  cursor: pointer;
+}
+
+.crop-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1200;
+  animation: fadeIn 0.4s ease;
+}
+
+.crop-modal {
+  position: relative;
+  width: 820px;
+  max-width: 95vw;
+  border-radius: 24px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(25px) saturate(180%);
+  box-shadow: 0 8px 50px rgba(0,0,0,0.4);
+  padding: 20px;
+  text-align: center;
+}
+
+.crop-full-canvas {
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  cursor: grab;
+}
+
+.crop-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  pointer-events: none;
+}
+
+.crop-frame {
+  border: 2px solid rgba(255,165,0,0.9);
+  box-shadow: 0 0 25px rgba(255,165,0,0.4);
+  border-radius: 4px;
+  background: rgba(255,165,0,0.08);
+}
+
+.crop-controls {
+  margin-top: 16px;
+}
+
+.crop-buttons {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* 🔁 Reset button + tooltip */
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+  margin-left: 12px;
+}
+
+.btn-glass.reset {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 18px;
+  font-weight: 500;
+  background: rgba(255,255,255,0.15);
+  backdrop-filter: blur(20px) saturate(180%);
+  color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 10px rgba(0,150,255,0.4);
+  transition: all 0.25s ease;
+}
+
+.btn-glass.reset:hover {
+  background: rgba(255,255,255,0.25);
+  box-shadow: 0 0 15px rgba(0,180,255,0.6);
+  transform: scale(1.08);
+}
+
+.tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  top: -40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(255,255,255,0.25);
+  backdrop-filter: blur(15px);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  white-space: nowrap;
+  box-shadow: 0 0 10px rgba(0,0,0,0.25);
+  transition: opacity 0.25s ease, top 0.25s ease;
+}
+
+.tooltip-container:hover .tooltip {
+  visibility: visible;
+  opacity: 1;
+  top: -45px;
+}
+
+/* Smooth fade-in for reset animation */
+.image-reset {
+  transition: all 0.3s cubic-bezier(0.25,1,0.5,1);
+}
