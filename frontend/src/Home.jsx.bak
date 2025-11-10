@@ -1,0 +1,80 @@
+import React, { useEffect, useRef } from "react";
+// NON tocchiamo import del popup e resto dell'app
+
+export default function Home(){
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d", { alpha: true });
+
+    const drawGrid = () => {
+      const dpr = Math.max(1, window.devicePixelRatio || 1);
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      canvas.width  = Math.floor(w * dpr);
+      canvas.height = Math.floor(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // pulizia
+      ctx.clearRect(0, 0, w, h);
+
+      // variabili CSS
+      const styles = getComputedStyle(document.documentElement);
+      const cell      = parseInt(styles.getPropertyValue("--grid-size")) || 22;
+      const majorEvery= parseInt(styles.getPropertyValue("--grid-major-multiplier")) || 5;
+      const color     = styles.getPropertyValue("--grid-color").trim() || "rgba(255,255,255,0.06)";
+      const majorCol  = styles.getPropertyValue("--grid-major-color").trim() || "rgba(255,255,255,0.12)";
+
+      // linee verticali
+      for(let x=0; x<=w; x+=cell){
+        const isMajor = (Math.round(x/cell) % majorEvery) === 0;
+        ctx.beginPath();
+        ctx.strokeStyle = isMajor ? majorCol : color;
+        ctx.lineWidth = isMajor ? 1 : 0.5;
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, h);
+        ctx.stroke();
+      }
+
+      // linee orizzontali
+      for(let y=0; y<=h; y+=cell){
+        const isMajor = (Math.round(y/cell) % majorEvery) === 0;
+        ctx.beginPath();
+        ctx.strokeStyle = isMajor ? majorCol : color;
+        ctx.lineWidth = isMajor ? 1 : 0.5;
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(w, y + 0.5);
+        ctx.stroke();
+      }
+    };
+
+    const handleResize = () => {
+      // forza misura visuale a matchare il canvas
+      canvas.style.width  = `${window.innerWidth}px`;
+      canvas.style.height = `${window.innerHeight}px`;
+      drawGrid();
+    };
+
+    // inizializzazione
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
+    mediaQuery.addEventListener?.("change", drawGrid);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      mediaQuery.removeEventListener?.("change", drawGrid);
+    };
+  }, []);
+
+  return (
+    <div className="page-shell">
+      {/* Griglia a pieno schermo, dietro tutto */}
+      <canvas ref={canvasRef} className="fullscreen-canvas" />
+
+      {/* TUTTO IL RESTO DELL'APP rimane invariato */}
+      {/* Metti qui i layer/selection/popup esistenti, non li tocco */}
+    </div>
+  );
+}

@@ -1,0 +1,30 @@
+import { randomUUID } from "crypto";
+import pkg from "pg";
+import dotenv from "dotenv";
+
+dotenv.config();
+const { Pool } = pkg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : false,
+});
+
+export async function recordPurchase(userId, area, price, imageUrl, linkUrl) {
+  const client = await pool.connect();
+  try {
+    const purchaseId = randomUUID(); // ✅ genera UUID corretto
+    const query = `
+      INSERT INTO purchases (id, user_id, area, price, image_url, link_url, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    `;
+    const values = [purchaseId, userId, JSON.stringify(area), price, imageUrl, linkUrl];
+    await client.query(query, values);
+    return { id: purchaseId };
+  } catch (err) {
+    console.error("❌ Failed to store purchase error:", err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}

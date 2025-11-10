@@ -1,0 +1,59 @@
+import { randomUUID } from "crypto";
+import pkg from "pg";
+import dotenv from "dotenv";
+
+dotenv.config();
+const { Pool } = pkg;
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : false,
+});
+
+// ✅ Inserisce un acquisto nel database
+export async function recordPurchase(userId, area, price, imageUrl, linkUrl) {
+  const client = await pool.connect();
+  try {
+    const purchaseId = randomUUID();
+    const query = `
+      INSERT INTO purchases (id, user_id, area, price, image_url, link_url, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+    `;
+    const values = [purchaseId, userId, JSON.stringify(area), price, imageUrl, linkUrl];
+    await client.query(query, values);
+    return { id: purchaseId };
+  } catch (err) {
+    console.error("❌ Failed to store purchase:", err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ✅ Recupera tutte le aree acquistate
+export async function listPurchases() {
+  const client = await pool.connect();
+  try {
+    const res = await client.query("SELECT * FROM purchases ORDER BY created_at DESC");
+    return res.rows;
+  } catch (err) {
+    console.error("❌ Error listing purchases:", err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+// ✅ Somma totale dei pixel acquistati
+export async function sumPurchasedPixels() {
+  const client = await pool.connect();
+  try {
+    const res = await client.query("SELECT SUM((area->>'w')::int * (area->>'h')::int) AS total_pixels FROM purchases");
+    return res.rows[0]?.total_pixels || 0;
+  } catch (err) {
+    console.error("❌ Error summing pixels:", err);
+    throw err;
+  } finally {
+    client.release();
+  }
+}

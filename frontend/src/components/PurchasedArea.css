@@ -1,0 +1,269 @@
+.purchased-area-tile {
+  position: absolute;
+  display: block;
+  border-radius: 6px;
+  overflow: hidden;
+  pointer-events: auto;
+  transition: box-shadow 0.35s ease, transform 0.35s ease;
+  cursor: default;
+  outline: none;
+  z-index: 90;
+}
+
+.purchased-area-tile.has-link {
+  cursor: pointer;
+}
+
+.purchased-area-tile:focus-visible {
+  box-shadow: 0 0 0 3px rgba(255, 165, 0, 0.45);
+}
+
+.purchased-area-image,
+.purchased-area-placeholder {
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.purchased-area-image{
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.purchased-area-placeholder {
+  background: repeating-linear-gradient(
+      45deg,
+      rgba(255, 165, 0, 0.06),
+      rgba(255, 165, 0, 0.06) 12px,
+      rgba(255, 165, 0, 0.12) 12px,
+      rgba(255, 165, 0, 0.12) 24px
+    );
+  border: 1px dashed rgba(255, 165, 0, 0.25);
+}
+
+.purchased-area-tile.has-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 18px rgba(255, 165, 0, 0.25);
+}
+
+.link-preview-card {
+  position: absolute;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: rgba(14, 16, 24, 0.92);
+  border: 1px solid rgba(255, 165, 0, 0.4);
+  box-shadow: 0 22px 38px rgba(0, 0, 0, 0.45), 0 0 32px rgba(255, 165, 0, 0.35);
+  color: #fff;
+  font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif;
+  z-index: 250;
+  pointer-events: auto;
+  text-align: left;
+  backdrop-filter: blur(22px) saturate(180%);
+  transition: opacity 0.3s ease, transform 0.2s ease;
+  opacity: 1;
+}
+
+.link-preview-card.align-bottom {
+}
+
+.link-preview-card.fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.preview-thumb {
+  width: 100%;
+  height: 120px;
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 14px 22px rgba(0, 0, 0, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.preview-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.preview-thumb.placeholder {
+  background: rgba(255, 165, 0, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 32px;
+}
+
+.preview-thumb.placeholder img {
+  width: 54px;
+  height: 54px;
+  object-fit: contain;
+}
+
+.preview-thumb.blurred img,
+.preview-thumb.blurred span {
+  filter: blur(14px);
+  opacity: 0;
+}
+
+.preview-thumb.blurred::after {
+  content: "Blurred preview";
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(8, 10, 16, 0.65);
+}
+
+.preview-blur-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 10px;
+}
+
+.preview-blur-toggle-status {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.preview-blur-toggle {
+  position: relative;
+  width: 64px;
+  height: 30px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  background: linear-gradient(135deg, rgba(60, 70, 80, 0.65), rgba(20, 25, 35, 0.65));
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.45), 0 8px 18px rgba(0, 0, 0, 0.4);
+  transition: all 0.32s ease;
+}
+
+.preview-blur-toggle::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.1);
+  transition: inherit;
+}
+
+.preview-blur-toggle-thumb {
+  position: absolute;
+  top: 50%;
+  left: 6px;
+  width: 26px;
+  height: 20px;
+  border-radius: 40px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.2));
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35), inset 0 0 1px rgba(255, 255, 255, 0.4);
+  transform: translateY(-50%);
+  transition: all 0.32s ease;
+}
+
+.preview-blur-toggle.active {
+  background: linear-gradient(135deg, rgba(45, 196, 80, 0.95), rgba(34, 185, 70, 0.88));
+  box-shadow: 0 12px 26px rgba(38, 170, 62, 0.45), inset 0 2px 4px rgba(255, 255, 255, 0.18);
+}
+
+.preview-blur-toggle.active::before {
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 18px rgba(35, 200, 70, 0.5);
+}
+
+.preview-blur-toggle.active .preview-blur-toggle-thumb {
+  left: 32px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.25));
+  box-shadow: 0 14px 26px rgba(35, 200, 70, 0.45), inset 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+.center-hamburger {
+  position: fixed;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  background: rgba(14,14,22,0.88);
+  border: 1px solid rgba(255,255,255,0.1);
+  box-shadow:
+    0 10px 24px rgba(0,0,0,0.42),
+    0 0 18px rgba(255,165,0,0.32);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  z-index: 190;
+  backdrop-filter: blur(18px) saturate(160%);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.3s ease;
+  opacity: 1;
+}
+
+.center-hamburger.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.center-hamburger:hover {
+  transform: translateX(-50%) translateY(-1px);
+  box-shadow:
+    0 14px 28px rgba(0,0,0,0.5),
+    0 0 24px rgba(255,165,0,0.45);
+}
+
+.center-hamburger span {
+  width: 22px;
+  height: 2.5px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.9);
+  box-shadow: 0 0 6px rgba(0,0,0,0.25);
+}
+
+.preview-domain {
+  font-size: 14px;
+  opacity: 0.9;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.preview-link {
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.92);
+  margin-bottom: 10px;
+  word-break: break-word;
+  text-decoration: none;
+  display: inline-block;
+  transition: color 0.2s ease;
+}
+
+.preview-link:hover {
+  color: #0a84ff;
+  text-decoration: underline;
+}
+
+.preview-open-hint {
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.6);
+}
