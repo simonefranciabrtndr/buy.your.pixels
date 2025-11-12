@@ -11,8 +11,9 @@ const start = async () => {
   }
 
   const app = createApp();
-  app.listen(config.port, () => {
-    console.log(`Payment server running on port ${config.port}`);
+  const port = process.env.PORT ? Number(process.env.PORT) : config.port;
+  app.listen(port, () => {
+    console.log(`Payment server running on port ${port}`);
   });
 };
 
