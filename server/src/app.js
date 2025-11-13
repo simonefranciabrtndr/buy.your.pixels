@@ -24,7 +24,18 @@ const buildSelectionSummary = (area) => {
 export const createApp = () => {
   const app = express();
   app.use(helmet());
-  app.use(cors({ origin: config.baseUrl, credentials: true }));
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (config.allowedOrigins.includes("*") || config.allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error(`Not allowed by CORS: ${origin}`));
+      },
+      credentials: true,
+    })
+  );
   app.use(express.json({ limit: "5mb" }));
   app.use(morgan("dev"));
 
