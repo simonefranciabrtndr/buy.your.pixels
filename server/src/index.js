@@ -84,25 +84,44 @@ app.get("/api/stats", async (req, res) => {
 
 // Create Stripe session
 app.post("/api/checkout/session", async (req, res) => {
-  const { amount, metadata } = req.body;
+  try {
+    const { amount, metadata } = req.body;
 
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ["card"],
-    line_items: [{
-      price_data: {
-        currency: "eur",
-        unit_amount: amount,
-        product_data: { name: "Pixel Purchase" }
-      },
-      quantity: 1
-    }],
-    mode: "payment",
-    success_url: process.env.APP_BASE_URL + "/?success=true",
-    cancel_url: process.env.APP_BASE_URL + "/?canceled=true",
-    metadata
-  });
+    const safeMetadata = {};
+    if (metadata) {
+      for (const key of Object.keys(metadata)) {
+        safeMetadata[key] =
+          typeof metadata[key] === "string"
+            ? metadata[key]
+            : JSON.stringify(metadata[key]);
+      }
+    }
 
-  res.json({ id: session.id });
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "eur",
+            unit_amount: amount,
+            product_data: { name: "Pixel Purchase" },
+          },
+          quantity: 1,
+        },
+      ],
+      mode: "payment",
+      success_url: `${process.env.APP_BASE_URL}/?success=true`,
+      cancel_url: `${process.env.APP_BASE_URL}/?canceled=true`,
+      metadata: safeMetadata,
+    });
+
+    console.log("Checkout session created:", session.id);
+
+    res.json({ id: session.id });
+  } catch (err) {
+    console.error("Stripe Checkout Error:", err);
+    res.status(500).json({ error: "Stripe session creation failed" });
+  }
 });
 
 // Acknowledge session after payment
