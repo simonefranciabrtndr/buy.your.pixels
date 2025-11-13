@@ -10,16 +10,23 @@ const { Client } = pkg;
 
 const app = express();
 
-// -------------------------
-// CORS FIX PER VERCEL
-// -------------------------
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+  : ["http://localhost:5173"];
+console.log("Loaded ALLOWED_ORIGINS:", process.env.ALLOWED_ORIGINS);
+console.log("Allowed origins array:", allowedOrigins);
+
 app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://buy-your-pixels.vercel.app"
-  ],
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
   methods: ["GET", "POST"],
-  allowedHeaders: ["Content-Type"]
+  allowedHeaders: ["Content-Type"],
+  credentials: true,
 }));
 
 app.use(bodyParser.json({ limit: "25mb" }));
