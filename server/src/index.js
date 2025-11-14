@@ -4,6 +4,7 @@ import Stripe from "stripe";
 import fetch from "node-fetch";
 import { v4 as uuidv4 } from "uuid";
 import pkg from "pg";
+import purchaseStore from "./purchaseStore.js";
 
 const { Client } = pkg;
 
@@ -156,6 +157,43 @@ app.post("/api/checkout/session/:sessionId/acknowledge", async (req, res) => {
 // Presence system (ignored)
 app.post("/api/presence/heartbeat", (req, res) => {
   res.status(200).json({ ok: true });
+});
+
+// ----------------------
+// GET /api/purchases
+// ----------------------
+app.get("/api/purchases", async (req, res) => {
+  try {
+    const purchases = await purchaseStore.getAll();
+    res.json(purchases);
+  } catch (err) {
+    console.error("Error fetching purchases:", err);
+    res.status(500).json({ error: "Cannot fetch purchases" });
+  }
+});
+
+// ----------------------
+// POST /api/purchases
+// ----------------------
+app.post("/api/purchases", async (req, res) => {
+  try {
+    const { x, y, width, height, imageUrl, linkUrl } = req.body;
+
+    const saved = await purchaseStore.add({
+      x,
+      y,
+      width,
+      height,
+      imageUrl,
+      linkUrl,
+      createdAt: new Date(),
+    });
+
+    res.json(saved);
+  } catch (err) {
+    console.error("Error saving purchase:", err);
+    res.status(500).json({ error: "Cannot save purchase" });
+  }
 });
 
 // -------------------------
