@@ -20,11 +20,17 @@ const jsonFetch = async (path, options = {}) => {
 };
 
 export const createCheckoutSession = async ({ area, price, currency = "eur", metadata = {} }) => {
+  const amount = Number(price || 0);
   const payload = {
-    area,
-    price,
+    amount,
     currency,
-    metadata,
+    metadata: {
+      ...metadata,
+      rect: area?.rect ? JSON.stringify(area.rect) : undefined,
+      tiles: area?.tiles ? JSON.stringify(area.tiles) : undefined,
+      area: area?.area ?? area?.rect?.w * area?.rect?.h ?? 0,
+      price: amount,
+    },
   };
   return jsonFetch("/api/checkout/session", {
     method: "POST",
