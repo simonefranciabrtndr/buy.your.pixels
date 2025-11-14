@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import bodyParser from "body-parser";
 import Stripe from "stripe";
 import fetch from "node-fetch";
@@ -12,30 +13,13 @@ import {
 
 const app = express();
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
-  : ["http://localhost:5173"];
-
-console.log("Loaded ALLOWED_ORIGINS:", process.env.ALLOWED_ORIGINS);
-console.log("Allowed origins array:", allowedOrigins);
-
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-
-  if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin || "*");
-  }
-
-  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.header("Access-Control-Allow-Credentials", "true");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  next();
-});
+app.use(cors({
+  origin: [
+    "https://buy-your-pixels.vercel.app",
+    "http://localhost:5173"
+  ],
+  credentials: true,
+}));
 
 app.use(bodyParser.json({ limit: "25mb" }));
 
@@ -79,6 +63,11 @@ app.get("/api/stats", async (req, res) => {
 app.post("/api/checkout/session", async (req, res) => {
   try {
     const { amount, metadata } = req.body;
+    const normalizedAmount = Number(amount);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      return res.status(400).json({ error: "Invalid amount" });
+    }
+    const amountInMinor = Math.round(normalizedAmount * 100);
 
     const safeMetadata = {};
     if (metadata) {
@@ -95,7 +84,7 @@ app.post("/api/checkout/session", async (req, res) => {
         {
           price_data: {
             currency: "eur",
-            unit_amount: amount,
+            unit_amount: amountInMinor,
             product_data: { name: "Pixel Purchase" }
           },
           quantity: 1
