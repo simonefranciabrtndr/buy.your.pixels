@@ -3,10 +3,12 @@ import bodyParser from "body-parser";
 import Stripe from "stripe";
 import fetch from "node-fetch";
 import { v4 as uuidv4 } from "uuid";
-import pkg from "pg";
-import purchaseStore from "./purchaseStore.js";
-
-const { Client } = pkg;
+import {
+  initializePurchaseStore,
+  recordPurchase,
+  listPurchases,
+  sumPurchasedPixels
+} from "./purchaseStore.js";
 
 const app = express();
 
@@ -37,53 +39,43 @@ app.use((req, res, next) => {
 
 app.use(bodyParser.json({ limit: "25mb" }));
 
-// -------------------------
-// ENV
-// -------------------------
 const PORT = process.env.PORT || 4000;
 const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY;
-const PAYPAL_CLIENT = process.env.PAYPAL_CLIENT_ID;
-const PAYPAL_SECRET = process.env.PAYPAL_CLIENT_SECRET;
-const PAYPAL_ENV = process.env.PAYPAL_ENV || "sandbox";
-
-// Stripe
 const stripe = new Stripe(STRIPE_SECRET);
 
-// Postgres
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-await client.connect();
-
-// Create table if missing
-await client.query(`
-  CREATE TABLE IF NOT EXISTS purchases (
-    id UUID PRIMARY KEY,
-    created_at TIMESTAMP DEFAULT NOW(),
-    x INT, y INT, w INT, h INT,
-    image TEXT,
-    url TEXT,
-    amount INT
-  );
-`);
+const safeParseJson = (value, fallback) => {
+  if (!value) return fallback;
+  if (typeof value !== "string") return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
 
 // -------------------------
-// API
+// HEALTH
 // -------------------------
-
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// Board stats
+// -------------------------
+// STATS (usa il nuovo store)
+// -------------------------
 app.get("/api/stats", async (req, res) => {
-  const { rows } = await client.query("SELECT * FROM purchases");
-  res.json(rows);
+  try {
+    const purchasedPixels = await sumPurchasedPixels();
+    res.json({ purchasedPixels });
+  } catch (err) {
+    console.error("Error loading stats:", err);
+    res.status(500).json({ error: "Cannot load stats" });
+  }
 });
 
-// Create Stripe session
+// -------------------------
+// STRIPE CHECKOUT SESSION
+// -------------------------
 app.post("/api/checkout/session", async (req, res) => {
   try {
     const { amount, metadata } = req.body;
@@ -91,10 +83,9 @@ app.post("/api/checkout/session", async (req, res) => {
     const safeMetadata = {};
     if (metadata) {
       for (const key of Object.keys(metadata)) {
+        const value = metadata[key];
         safeMetadata[key] =
-          typeof metadata[key] === "string"
-            ? metadata[key]
-            : JSON.stringify(metadata[key]);
+          typeof value === "string" ? value : JSON.stringify(value);
       }
     }
 
@@ -105,19 +96,18 @@ app.post("/api/checkout/session", async (req, res) => {
           price_data: {
             currency: "eur",
             unit_amount: amount,
-            product_data: { name: "Pixel Purchase" },
+            product_data: { name: "Pixel Purchase" }
           },
-          quantity: 1,
-        },
+          quantity: 1
+        }
       ],
       mode: "payment",
       success_url: `${process.env.APP_BASE_URL}/?success=true`,
       cancel_url: `${process.env.APP_BASE_URL}/?canceled=true`,
-      metadata: safeMetadata,
+      metadata: safeMetadata
     });
 
     console.log("Checkout session created:", session.id);
-
     res.json({ id: session.id });
   } catch (err) {
     console.error("Stripe Checkout Error:", err);
@@ -125,46 +115,55 @@ app.post("/api/checkout/session", async (req, res) => {
   }
 });
 
-// Acknowledge session after payment
+// -------------------------
+// ACKNOWLEDGE DOPO IL PAGAMENTO
+// (salva nel nuovo schema via purchaseStore)
+// -------------------------
 app.post("/api/checkout/session/:sessionId/acknowledge", async (req, res) => {
-  const id = req.params.sessionId;
-  const session = await stripe.checkout.sessions.retrieve(id);
+  try {
+    const id = req.params.sessionId;
+    const session = await stripe.checkout.sessions.retrieve(id);
 
-  if (session.payment_status !== "paid") {
-    return res.status(403).json({ error: "Payment not finalized" });
+    if (session.payment_status !== "paid") {
+      return res.status(403).json({ error: "Payment not finalized" });
+    }
+
+    const meta = session.metadata || {};
+
+    const purchasePayload = {
+      rect: safeParseJson(meta.rect, meta.rect || {}),
+      tiles: safeParseJson(meta.tiles, []),
+      area: meta.area ? Number(meta.area) : Number(meta.areaPixels || 0),
+      price: meta.price ? Number(meta.price) : Number(meta.amount || 0),
+      link: meta.link || meta.url || null,
+      uploadedImage: meta.uploadedImage || meta.image || null,
+      imageTransform: safeParseJson(meta.imageTransform, {}),
+      previewData: safeParseJson(meta.previewData, {}),
+      nsfw: meta.nsfw === "true" || meta.nsfw === true
+    };
+
+    const saved = await recordPurchase(purchasePayload);
+
+    res.json({ ok: true, purchase: saved });
+  } catch (err) {
+    console.error("Acknowledge error:", err);
+    res.status(500).json({ error: "Acknowledge failed" });
   }
-
-  const meta = session.metadata;
-
-  await client.query(
-    `INSERT INTO purchases(id,x,y,w,h,image,url,amount)
-     VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
-     [
-       uuidv4(),
-       Number(meta.x),
-       Number(meta.y),
-       Number(meta.w),
-       Number(meta.h),
-       meta.image,
-       meta.url,
-       Number(meta.amount)
-     ]
-  );
-
-  res.json({ ok: true });
 });
 
-// Presence system (ignored)
+// -------------------------
+// PRESENCE HEARTBEAT
+// -------------------------
 app.post("/api/presence/heartbeat", (req, res) => {
   res.status(200).json({ ok: true });
 });
 
-// ----------------------
-// GET /api/purchases
-// ----------------------
+// -------------------------
+// API ACQUISTI (nuovo store)
+// -------------------------
 app.get("/api/purchases", async (req, res) => {
   try {
-    const purchases = await purchaseStore.getAll();
+    const purchases = await listPurchases();
     res.json(purchases);
   } catch (err) {
     console.error("Error fetching purchases:", err);
@@ -172,21 +171,18 @@ app.get("/api/purchases", async (req, res) => {
   }
 });
 
-// ----------------------
-// POST /api/purchases
-// ----------------------
 app.post("/api/purchases", async (req, res) => {
   try {
-    const { x, y, width, height, imageUrl, linkUrl } = req.body;
-
-    const saved = await purchaseStore.add({
-      x,
-      y,
-      width,
-      height,
-      imageUrl,
-      linkUrl,
-      createdAt: new Date(),
+    const saved = await recordPurchase({
+      rect: req.body.rect,
+      tiles: req.body.tiles,
+      area: req.body.area,
+      price: req.body.price,
+      link: req.body.link,
+      uploadedImage: req.body.uploadedImage,
+      imageTransform: req.body.imageTransform,
+      previewData: req.body.previewData,
+      nsfw: req.body.nsfw
     });
 
     res.json(saved);
@@ -197,8 +193,18 @@ app.post("/api/purchases", async (req, res) => {
 });
 
 // -------------------------
-// RUN SERVER
+// AVVIO SERVER
 // -------------------------
-app.listen(PORT, () => {
-  console.log("Payment server running on port", PORT);
-});
+async function start() {
+  try {
+    await initializePurchaseStore();
+    app.listen(PORT, () => {
+      console.log("Payment server running on port", PORT);
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err);
+    process.exit(1);
+  }
+}
+
+start();
