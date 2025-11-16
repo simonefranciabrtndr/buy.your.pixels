@@ -12,7 +12,9 @@ import {
 
 const app = express();
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",");
+const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim());
+console.log("ALLOWED_ORIGINS env:", process.env.ALLOWED_ORIGINS);
+console.log("Allowed origins array:", allowedOrigins);
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
