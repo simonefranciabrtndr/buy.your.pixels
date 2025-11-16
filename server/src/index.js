@@ -1,5 +1,4 @@
 import express from "express";
-import cors from "cors";
 import bodyParser from "body-parser";
 import Stripe from "stripe";
 import fetch from "node-fetch";
@@ -13,13 +12,25 @@ import {
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    "https://buy-your-pixels.vercel.app",
-    "http://localhost:5173"
-  ],
-  credentials: true,
-}));
+const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim());
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+
+  if (allowedOrigins.includes(origin)) {
+    res.header("Access-Control-Allow-Origin", origin);
+  }
+
+  res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.header("Access-Control-Allow-Credentials", "true");
+
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
 
 app.use(bodyParser.json({ limit: "25mb" }));
 
