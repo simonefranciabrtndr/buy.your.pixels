@@ -1,4 +1,5 @@
 import express from "express";
+import cors from "cors";
 import bodyParser from "body-parser";
 import Stripe from "stripe";
 import fetch from "node-fetch";
@@ -12,27 +13,43 @@ import {
 
 const app = express();
 
-const allowedOrigins = process.env.ALLOWED_ORIGINS.split(",").map((s) => s.trim());
-console.log("ALLOWED_ORIGINS env:", process.env.ALLOWED_ORIGINS);
-console.log("Allowed origins array:", allowedOrigins);
+console.log("RAW ALLOWED_ORIGINS =", process.env.ALLOWED_ORIGINS);
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
+// ---- FIX APP_BASE_URL ----
+const APP_BASE_URL = process.env.APP_BASE_URL?.trim();
+console.log("LOADED APP_BASE_URL =", APP_BASE_URL);
 
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  }
+if (!APP_BASE_URL || !APP_BASE_URL.startsWith("https://")) {
+  console.error("❌ ERROR: APP_BASE_URL is invalid or missing:", APP_BASE_URL);
+}
 
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+const allowed = process.env.ALLOWED_ORIGINS
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
+console.log("PARSED ALLOWED ORIGINS =", allowed);
 
-  next();
-});
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      console.log("Origin received by CORS:", origin);
+      if (!origin) return callback(null, true);
+      if (allowed.includes(origin)) {
+        console.log("✔ ORIGIN ALLOWED:", origin);
+        return callback(null, true);
+      } else {
+        console.log("❌ ORIGIN BLOCKED:", origin);
+        return callback(new Error("CORS not allowed"), false);
+      }
+    },
+    credentials: true,
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.options("*", cors());
 
 app.use(bodyParser.json({ limit: "25mb" }));
 
@@ -71,15 +88,25 @@ app.get("/api/stats", async (req, res) => {
 });
 
 // -------------------------
-// STRIPE CHECKOUT SESSION
+// STRIPE CHECKOUT SESSION (FIXED)
 // -------------------------
 app.post("/api/checkout/session", async (req, res) => {
   try {
+    console.log(">>> CHECKOUT REQUEST");
+    console.log("APP_BASE_URL used:", APP_BASE_URL);
+
+    if (!APP_BASE_URL) {
+      console.error("❌ APP_BASE_URL missing during checkout");
+      return res.status(500).json({ error: "Server misconfigured: APP_BASE_URL missing" });
+    }
+
     const { amount, metadata } = req.body;
     const normalizedAmount = Number(amount);
+
     if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
       return res.status(400).json({ error: "Invalid amount" });
     }
+
     const amountInMinor = Math.round(normalizedAmount * 100);
 
     const safeMetadata = {};
@@ -90,6 +117,12 @@ app.post("/api/checkout/session", async (req, res) => {
           typeof value === "string" ? value : JSON.stringify(value);
       }
     }
+
+    const successURL = `${APP_BASE_URL}/?success=true`;
+    const cancelURL = `${APP_BASE_URL}/?canceled=true`;
+
+    console.log("SUCCESS_URL →", successURL);
+    console.log("CANCEL_URL →", cancelURL);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -104,22 +137,21 @@ app.post("/api/checkout/session", async (req, res) => {
         }
       ],
       mode: "payment",
-      success_url: `${process.env.APP_BASE_URL}/?success=true`,
-      cancel_url: `${process.env.APP_BASE_URL}/?canceled=true`,
+      success_url: successURL,
+      cancel_url: cancelURL,
       metadata: safeMetadata
     });
 
-    console.log("Checkout session created:", session.id);
+    console.log("✔ Checkout session created:", session.id);
     res.json({ id: session.id });
   } catch (err) {
-    console.error("Stripe Checkout Error:", err);
+    console.error("❌ Stripe Checkout Error:", err);
     res.status(500).json({ error: "Stripe session creation failed" });
   }
 });
 
 // -------------------------
-// ACKNOWLEDGE DOPO IL PAGAMENTO
-// (salva nel nuovo schema via purchaseStore)
+// ACKNOWLEDGE
 // -------------------------
 app.post("/api/checkout/session/:sessionId/acknowledge", async (req, res) => {
   try {
@@ -154,14 +186,14 @@ app.post("/api/checkout/session/:sessionId/acknowledge", async (req, res) => {
 });
 
 // -------------------------
-// PRESENCE HEARTBEAT
+// PRESENCE
 // -------------------------
 app.post("/api/presence/heartbeat", (req, res) => {
   res.status(200).json({ ok: true });
 });
 
 // -------------------------
-// API ACQUISTI (nuovo store)
+// API ACQUISTI
 // -------------------------
 app.get("/api/purchases", async (req, res) => {
   try {
@@ -195,7 +227,7 @@ app.post("/api/purchases", async (req, res) => {
 });
 
 // -------------------------
-// AVVIO SERVER
+// START SERVER
 // -------------------------
 async function start() {
   try {
