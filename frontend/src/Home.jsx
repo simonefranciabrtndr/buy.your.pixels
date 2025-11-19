@@ -3,6 +3,7 @@ import SelectionPopup from "./components/SelectionPopup";
 import LegalMenu from "./components/LegalMenu";
 import ProfileManagerModal from "./components/ProfileManagerModal";
 import DeveloperConsole from "./components/DeveloperConsole";
+import { fetchProfile } from "./api/profile";
 import { legalDocuments } from "./legal/legalDocs";
 import { usePresenceStats } from "./hooks/usePresenceStats";
 import { usePresenceSync } from "./hooks/usePresenceSync";
@@ -12,6 +13,19 @@ import "./components/PurchasedArea.css";
 const DEFAULT_TRANSFORM = { x: 0, y: 0, width: 1, height: 1 };
 const PRICE_PER_PIXEL = 0.02;
 const PROFILE_STORAGE_KEY = "buyYourPixels.profile";
+
+const loadStoredProfile = () => {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(PROFILE_STORAGE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.token && parsed?.profile) return parsed;
+  } catch {
+    window.localStorage.removeItem(PROFILE_STORAGE_KEY);
+  }
+  return null;
+};
 
 const rectArea = (rect) => (rect?.w ?? 0) * (rect?.h ?? 0);
 
@@ -162,8 +176,44 @@ export default function Home() {
   const [isLegalMenuOpen, setIsLegalMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState(false);
-  const [profile, setProfile] = useState(null);
+  const [profile, setProfile] = useState(() => loadStoredProfile());
   const presenceStats = usePresenceStats();
+  const persistProfile = useCallback((value) => {
+    if (typeof window === "undefined") return;
+    if (!value) {
+      window.localStorage.removeItem(PROFILE_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(value));
+    }
+  }, []);
+
+  const syncProfile = useCallback(
+    (payload) => {
+      if (!payload) {
+        setProfile(null);
+        persistProfile(null);
+        return;
+      }
+      const next = {
+        token: payload.token,
+        profile: payload.profile,
+        purchases: payload.purchases || [],
+      };
+      setProfile(next);
+      persistProfile(next);
+    },
+    [persistProfile]
+  );
+
+  const refreshProfile = useCallback(async () => {
+    if (!profile?.token) return;
+    try {
+      const data = await fetchProfile(profile.token);
+      syncProfile({ token: profile.token, profile: data.profile, purchases: data.purchases });
+    } catch (error) {
+      console.error("Unable to refresh profile", error);
+    }
+  }, [profile?.token, syncProfile]);
 
   const viewportPixels = useMemo(() => {
     const width = Math.max(0, Math.round(canvasSize.width || 0));
@@ -190,6 +240,8 @@ export default function Home() {
   const availablePixels = remoteAvailablePixels || Math.max(0, totalPixels - purchasedPixels);
   const totalRevenueEuros = Math.max(0, purchasedPixels * PRICE_PER_PIXEL);
   const donationEuros = totalRevenueEuros * 0.005;
+  const ownedPurchases = profile?.purchases || [];
+  const profileOwnedPixels = ownedPurchases.reduce((sum, item) => sum + Math.max(0, Math.round(item.area || 0)), 0);
   const onlineUsers = Math.max(0, Math.round(presenceStats.onlineUsers || 0));
   const remoteActiveSelections = Math.max(0, Math.round(presenceStats.activeSelections || 0));
   const remoteSelectedPixels = Math.max(0, Math.round(presenceStats.selectedPixels || 0));
@@ -213,7 +265,8 @@ export default function Home() {
       currentSelectionPixels: currentSelectedPixels,
       totalRevenueEuros,
       donationEuros,
-      profileAvatar: profile?.avatarData || null,
+      profileAvatar: profile?.profile?.avatarData || null,
+      profilePixels: profileOwnedPixels,
     }),
     [
       totalPixels,
@@ -224,7 +277,8 @@ export default function Home() {
       currentSelectionPixels,
       totalRevenueEuros,
       donationEuros,
-      profile?.avatarData,
+      profile?.profile?.avatarData,
+      profileOwnedPixels,
     ]
   );
 
@@ -247,16 +301,21 @@ export default function Home() {
 
   const openLegalMenu = useCallback(() => setIsLegalMenuOpen(true), []);
   const closeLegalMenu = useCallback(() => setIsLegalMenuOpen(false), []);
-  const openProfileModal = useCallback(() => setIsProfileModalOpen(true), []);
+  const openProfileModal = useCallback(() => {
+    if (profile?.token) {
+      refreshProfile();
+    }
+    setIsProfileModalOpen(true);
+  }, [profile?.token, refreshProfile]);
   const closeProfileModal = useCallback(() => setIsProfileModalOpen(false), []);
   const openDeveloperModal = useCallback(() => setIsDeveloperModalOpen(true), []);
   const closeDeveloperModal = useCallback(() => setIsDeveloperModalOpen(false), []);
-  const handleProfileSaved = useCallback((savedProfile) => {
-    setProfile(savedProfile);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(savedProfile));
-    }
-  }, []);
+  const handleProfileSaved = useCallback(
+    (savedProfile) => {
+      syncProfile(savedProfile);
+    },
+    [syncProfile]
+  );
 
   useEffect(() => () => clearHoverHideTimeout(), [clearHoverHideTimeout]);
 
@@ -272,16 +331,10 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(PROFILE_STORAGE_KEY);
-    if (stored) {
-      try {
-        setProfile(JSON.parse(stored));
-      } catch {
-        window.localStorage.removeItem(PROFILE_STORAGE_KEY);
-      }
+    if (profile?.token) {
+      refreshProfile();
     }
-  }, []);
+  }, [profile?.token, refreshProfile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -715,18 +768,21 @@ export default function Home() {
       resetAnimationState();
 
       try {
-        const saved = await createPurchase({
-          id: areaId,
-          rect: baseArea.rect,
-          tiles: baseArea.tiles,
-          area: baseArea.area,
-          price: baseArea.price,
-          link: baseArea.link,
-          uploadedImage: baseArea.uploadedImage,
-          imageTransform: baseArea.imageTransform,
-          previewData: baseArea.previewData,
-          nsfw: baseArea.nsfw,
-        });
+        const saved = await createPurchase(
+          {
+            id: areaId,
+            rect: baseArea.rect,
+            tiles: baseArea.tiles,
+            area: baseArea.area,
+            price: baseArea.price,
+            link: baseArea.link,
+            uploadedImage: baseArea.uploadedImage,
+            imageTransform: baseArea.imageTransform,
+            previewData: baseArea.previewData,
+            nsfw: baseArea.nsfw,
+          },
+          profile?.token
+        );
         setPurchasedAreas((prev) =>
           prev.map((area) =>
             area.id === areaId
@@ -740,6 +796,9 @@ export default function Home() {
         );
         if (saved?.link && saved?.previewData) {
           linkPreviewCacheRef.current.set(saved.link, saved.previewData);
+        }
+        if (profile?.token) {
+          refreshProfile();
         }
       } catch (error) {
         console.error("Failed to persist purchase", error);
@@ -1200,8 +1259,11 @@ export default function Home() {
       <ProfileManagerModal
         isOpen={isProfileModalOpen}
         onClose={closeProfileModal}
-        initialProfile={profile}
-        onSaved={handleProfileSaved}
+        profile={profile?.profile || null}
+        purchases={profile?.purchases || []}
+        token={profile?.token || null}
+        onProfileSync={handleProfileSaved}
+        onRefreshProfile={refreshProfile}
       />
       <DeveloperConsole isOpen={isDeveloperModalOpen} onClose={closeDeveloperModal} />
     </div>

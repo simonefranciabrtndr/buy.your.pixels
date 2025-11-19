@@ -1,6 +1,7 @@
 import pg from "pg";
 import { v4 as uuid } from "uuid";
 import { config } from "./config.js";
+import { initializeProfileStore } from "./profileStore.js";
 
 let pool = null;
 
@@ -20,7 +21,7 @@ const shouldUseSsl = (connectionString) => {
   }
 };
 
-const getPool = () => {
+export const getPool = () => {
   if (!pool) {
     throw new Error("Database connection not initialized. Set DATABASE_URL.");
   }
@@ -54,6 +55,8 @@ export const initializePurchaseStore = async () => {
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+
+  await initializeProfileStore(pool);
 };
 
 const isUuid = (value = "") => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -72,6 +75,7 @@ export const recordPurchase = async (purchase) => {
     JSON.stringify(purchase.imageTransform || {}),
     JSON.stringify(purchase.previewData || {}),
     Boolean(purchase.nsfw),
+    purchase.profileId || null,
   ];
 
   const { rows } = await db.query(
@@ -86,9 +90,10 @@ export const recordPurchase = async (purchase) => {
         uploaded_image,
         image_transform,
         preview_data,
-        nsfw
+        nsfw,
+        profile_id
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       ON CONFLICT (id)
       DO UPDATE SET
         rect = EXCLUDED.rect,
@@ -99,7 +104,8 @@ export const recordPurchase = async (purchase) => {
         uploaded_image = EXCLUDED.uploaded_image,
         image_transform = EXCLUDED.image_transform,
         preview_data = EXCLUDED.preview_data,
-        nsfw = EXCLUDED.nsfw
+        nsfw = EXCLUDED.nsfw,
+        profile_id = COALESCE(EXCLUDED.profile_id, purchases.profile_id)
       RETURNING *;
     `,
     values
@@ -146,6 +152,45 @@ export const updatePurchaseModeration = async (id, { nsfw }) => {
   return normalizePurchase(rows[0]);
 };
 
+export const listPurchasesByProfile = async (profileId) => {
+  if (!pool || !profileId) return [];
+  const { rows } = await pool.query(
+    "SELECT * FROM purchases WHERE profile_id = $1 ORDER BY created_at DESC",
+    [profileId]
+  );
+  return rows.map(normalizePurchase);
+};
+
+export const updateOwnedPurchase = async (profileId, purchaseId, { link, uploadedImage }) => {
+  if (!pool || !profileId) {
+    throw new Error("Unauthorized");
+  }
+  const updates = [];
+  const values = [profileId, purchaseId];
+  if (typeof link !== "undefined") {
+    updates.push(`link = $${values.length + 1}`);
+    values.push(link || null);
+  }
+  if (typeof uploadedImage !== "undefined") {
+    updates.push(`uploaded_image = $${values.length + 1}`);
+    values.push(uploadedImage || null);
+  }
+  if (!updates.length) {
+    throw new Error("No updates submitted");
+  }
+  const query = `
+    UPDATE purchases
+    SET ${updates.join(", ")}
+    WHERE profile_id = $1 AND id = $2
+    RETURNING *;
+  `;
+  const { rows } = await pool.query(query, values);
+  if (!rows.length) {
+    throw new Error("Purchase not found");
+  }
+  return normalizePurchase(rows[0]);
+};
+
 const normalizePurchase = (row) => {
   if (!row) return null;
   return {
@@ -159,6 +204,7 @@ const normalizePurchase = (row) => {
     imageTransform: row.image_transform,
     previewData: row.preview_data,
     nsfw: row.nsfw,
+    profileId: row.profile_id,
     createdAt: row.created_at,
   };
 };

@@ -3,18 +3,29 @@ import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
 import { v4 as uuid } from "uuid";
+import crypto from "crypto";
 import Stripe from "stripe";
 import { config } from "./config.js";
 import { capturePayPalOrder, createPayPalOrder } from "./paypal.js";
 import { touchPresence, getPresenceStats } from "./presenceStore.js";
-import { listPurchases, recordPurchase, sumPurchasedPixels, updatePurchaseModeration } from "./purchaseStore.js";
+import {
+  listPurchases,
+  listPurchasesByProfile,
+  recordPurchase,
+  sumPurchasedPixels,
+  updateOwnedPurchase,
+  updatePurchaseModeration,
+} from "./purchaseStore.js";
 import { sendProfileWelcome } from "./notifications.js";
+import { createProfileRecord, findProfileByEmail, findProfileById } from "./profileStore.js";
 
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: "2024-06-20" }) : null;
 
 const sessions = new Map();
 const developerSessions = new Map();
 const DEVELOPER_SESSION_TTL = 1000 * 60 * 60 * 12; // 12 hours
+const profileSessions = new Map();
+const PROFILE_SESSION_TTL = 1000 * 60 * 60 * 24 * 7; // 7 days
 
 const buildSelectionSummary = (area) => {
   if (!area) return null;
@@ -50,6 +61,60 @@ const requireDeveloperAuth = (req, res, next) => {
   }
   req.developerToken = token;
   next();
+};
+
+const createProfileSession = (profileId) => {
+  const token = uuid();
+  profileSessions.set(token, { profileId, createdAt: Date.now() });
+  return token;
+};
+
+const verifyProfileToken = (token) => {
+  if (!token) return null;
+  const session = profileSessions.get(token);
+  if (!session) return null;
+  const expired = Date.now() - session.createdAt > PROFILE_SESSION_TTL;
+  if (expired) {
+    profileSessions.delete(token);
+    return null;
+  }
+  return session.profileId;
+};
+
+const requireProfileAuth = async (req, res, next) => {
+  const header = req.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  const profileId = verifyProfileToken(token);
+  if (!profileId) {
+    return res.status(401).json({ error: "Authentication required" });
+  }
+  req.profileToken = token;
+  req.profileId = profileId;
+  next();
+};
+
+const hashPassword = (password, salt = crypto.randomBytes(16).toString("hex")) =>
+  new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) return reject(err);
+      resolve(`${salt}:${derivedKey.toString("hex")}`);
+    });
+  });
+
+const verifyPassword = (storedHash, password) =>
+  new Promise((resolve, reject) => {
+    if (!storedHash) return resolve(false);
+    const [salt, key] = storedHash.split(":");
+    crypto.scrypt(password, salt, 64, (err, derivedKey) => {
+      if (err) return reject(err);
+      resolve(key === derivedKey.toString("hex"));
+    });
+  });
+
+const attachProfileFromAuth = (req) => {
+  const header = req.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  return verifyProfileToken(token);
 };
 
 export const createApp = () => {
@@ -244,20 +309,86 @@ export const createApp = () => {
   });
 
   app.post("/api/profile/register", async (req, res) => {
-    const { email, username, subscribeNewsletter } = req.body || {};
-    if (!email || !username) {
-      return res.status(400).json({ error: "Email and username are required" });
+    const { email, username, password, subscribeNewsletter, avatarData } = req.body || {};
+    if (!email || !username || !password) {
+      return res.status(400).json({ error: "Email, username and password are required" });
     }
     try {
-      await sendProfileWelcome({
+      const existing = await findProfileByEmail(email);
+      if (existing) {
+        return res.status(409).json({ error: "A profile with this email already exists" });
+      }
+      const passwordHash = await hashPassword(password);
+      const profile = await createProfileRecord({
         email,
         username,
+        passwordHash,
+        avatarData,
+        newsletter: subscribeNewsletter,
+      });
+      const token = createProfileSession(profile.id);
+      await sendProfileWelcome({
+        email: profile.email,
+        username: profile.username,
         subscribeNewsletter: Boolean(subscribeNewsletter),
       });
-      res.json({ status: "ok" });
+      const purchases = await listPurchasesByProfile(profile.id);
+      res.json({ token, profile, purchases });
     } catch (error) {
       console.error("Profile registration failed", error);
       res.status(500).json({ error: "Unable to complete profile registration" });
+    }
+  });
+
+  app.post("/api/profile/login", async (req, res) => {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+    try {
+      const existing = await findProfileByEmail(email);
+      if (!existing) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      const valid = await verifyPassword(existing.raw.password_hash, password);
+      if (!valid) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+      const token = createProfileSession(existing.raw.id);
+      const purchases = await listPurchasesByProfile(existing.raw.id);
+      res.json({ token, profile: existing.profile, purchases });
+    } catch (error) {
+      console.error("Profile login failed", error);
+      res.status(500).json({ error: "Unable to login" });
+    }
+  });
+
+  app.get("/api/profile/me", requireProfileAuth, async (req, res) => {
+    try {
+      const profileRecord = await findProfileById(req.profileId);
+      if (!profileRecord) {
+        return res.status(404).json({ error: "Profile not found" });
+      }
+      const purchases = await listPurchasesByProfile(req.profileId);
+      res.json({ profile: profileRecord.profile, purchases });
+    } catch (error) {
+      console.error("Profile fetch failed", error);
+      res.status(500).json({ error: "Unable to load profile" });
+    }
+  });
+
+  app.put("/api/profile/purchases/:purchaseId", requireProfileAuth, async (req, res) => {
+    const { purchaseId } = req.params;
+    const { link, uploadedImage } = req.body || {};
+    try {
+      const updated = await updateOwnedPurchase(req.profileId, purchaseId, {
+        link,
+        uploadedImage,
+      });
+      res.json(updated);
+    } catch (error) {
+      console.error("Profile purchase update failed", error);
+      res.status(500).json({ error: "Unable to update purchase" });
     }
   });
 
@@ -312,6 +443,7 @@ export const createApp = () => {
         imageTransform: payload.imageTransform,
         previewData: payload.previewData,
         nsfw: payload.nsfw,
+        profileId: attachProfileFromAuth(req),
       });
       res.status(201).json(saved);
     } catch (error) {

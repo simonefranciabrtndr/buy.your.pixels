@@ -24,11 +24,14 @@ export const fetchPurchases = async () => {
   return data?.purchases || [];
 };
 
-export const createPurchase = async (payload) => {
+export const createPurchase = async (payload, token) => {
   const data = await handleResponse(
     await fetch(`${BASE_URL}/api/purchases`, {
       method: "POST",
-      headers: DEFAULT_HEADERS,
+      headers: {
+        ...DEFAULT_HEADERS,
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
       body: JSON.stringify(payload),
     })
   );

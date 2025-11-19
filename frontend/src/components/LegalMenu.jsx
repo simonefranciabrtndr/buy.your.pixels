@@ -80,12 +80,19 @@ export default function LegalMenu({
       {
         id: "profileManager",
         label: "Manage your pixels",
-        value: stats.profileAvatar ? (
-          <img src={stats.profileAvatar} alt="Profile avatar" className="legal-profile-thumb" />
-        ) : (
-          "Create profile"
-        ),
         action: "profile",
+        render: () =>
+          stats.profileAvatar ? (
+            <div className="legal-profile-value">
+              <img src={stats.profileAvatar} alt="Profile avatar" className="legal-profile-thumb" />
+              <div>
+                <span className="legal-profile-pixels-label">Pixels owned</span>
+                <p className="legal-profile-pixels-value">{formatValue(stats.profilePixels, " px")}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="legal-stat-value">Create profile</p>
+          ),
       },
     ],
     [stats, numberFormatter, currencyFormatter]
@@ -163,7 +170,7 @@ export default function LegalMenu({
                 {...cardProps}
               >
                 <p className="legal-stat-label">{metric.label}</p>
-                <p className="legal-stat-value">{metric.value}</p>
+                {metric.render ? metric.render() : <p className="legal-stat-value">{metric.value}</p>}
               </CardTag>
             );
           })}

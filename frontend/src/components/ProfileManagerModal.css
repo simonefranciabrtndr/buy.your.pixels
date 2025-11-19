@@ -209,6 +209,132 @@
   background: rgba(255, 86, 86, 0.15);
 }
 
+.profile-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.profile-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(20, 22, 36, 0.96), rgba(10, 12, 24, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.profile-summary-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.profile-summary-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 16px;
+}
+
+.profile-summary-pixels span {
+  font-weight: 600;
+}
+
+.profile-purchase-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-block-card {
+  border-radius: 20px;
+  padding: 18px;
+  background: rgba(14, 16, 28, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-block-header {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.profile-block-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 4px;
+}
+
+.profile-block-header input {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 10px 12px;
+  background: rgba(5, 6, 14, 0.9);
+  color: #fff;
+}
+
+.profile-block-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.profile-block-upload input {
+  border: none;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.profile-block-actions button {
+  border: none;
+  border-radius: 14px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #0a84ff, #0066ff);
+  color: #fff;
+  cursor: pointer;
+}
+
+.profile-block-message {
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.profile-block-message.error {
+  border: 1px solid rgba(255, 86, 86, 0.4);
+  background: rgba(255, 86, 86, 0.15);
+}
+
+.profile-block-message.success {
+  border: 1px solid rgba(43, 187, 67, 0.4);
+  background: rgba(43, 187, 67, 0.15);
+}
+
+.profile-empty-state {
+  padding: 40px;
+  border-radius: 20px;
+  text-align: center;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.7);
+}
+
 @media (max-width: 640px) {
   .profile-modal {
     padding: 28px;
