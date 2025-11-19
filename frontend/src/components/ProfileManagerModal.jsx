@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { registerProfile } from "../api/profile";
+import { registerProfile, updateProfilePurchase } from "../api/profile";
 import "./ProfileManagerModal.css";
 
 const readFileAsDataUrl = (file) =>
@@ -10,7 +10,16 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-export default function ProfileManagerModal({ isOpen, onClose, profile, purchases = [], token, onProfileSync }) {
+export default function ProfileManagerModal({
+  isOpen,
+  onClose,
+  profile,
+  purchases = [],
+  token,
+  onProfileSync,
+  onRefreshProfile,
+  onEditPurchase,
+}) {
   const [form, setForm] = useState({
     email: "",
     username: "",
@@ -21,6 +30,7 @@ export default function ProfileManagerModal({ isOpen, onClose, profile, purchase
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
+  const [purchaseEdits, setPurchaseEdits] = useState({});
 
   const hasProfile = Boolean(token && profile);
   const canSubmit = useMemo(() => form.email && form.username && form.password, [form]);
@@ -44,6 +54,21 @@ export default function ProfileManagerModal({ isOpen, onClose, profile, purchase
       setAvatarPreview(profile.avatarData || null);
     }
   }, [isOpen, profile]);
+
+  useEffect(() => {
+    if (hasProfile) {
+      const next = {};
+      purchases.forEach((purchase) => {
+        next[purchase.id] = {
+          link: purchase.link || "",
+          imageData: null,
+          status: "idle",
+          message: "",
+        };
+      });
+      setPurchaseEdits(next);
+    }
+  }, [hasProfile, purchases, isOpen]);
 
   if (!isOpen) return null;
 
@@ -87,6 +112,52 @@ export default function ProfileManagerModal({ isOpen, onClose, profile, purchase
     } catch (error) {
       setStatus("error");
       setMessage(error.message || "Unable to save your profile right now.");
+    }
+  };
+
+  const handlePurchaseField = (id, field, value) => {
+    setPurchaseEdits((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], [field]: value },
+    }));
+  };
+
+  const handlePurchaseImage = async (id, event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      handlePurchaseField(id, "imageData", null);
+      return;
+    }
+    const dataUrl = await readFileAsDataUrl(file);
+    handlePurchaseField(id, "imageData", dataUrl);
+  };
+
+  const handlePurchaseSave = async (purchaseId) => {
+    if (!token) return;
+    const edit = purchaseEdits[purchaseId];
+    const original = purchases.find((purchase) => purchase.id === purchaseId);
+    if (!edit || !original) return;
+    const payload = {};
+    if (typeof edit.link !== "undefined" && edit.link !== (original.link || "")) {
+      payload.link = edit.link;
+    }
+    if (edit.imageData) {
+      payload.uploadedImage = edit.imageData;
+    }
+    if (!Object.keys(payload).length) {
+      handlePurchaseField(purchaseId, "message", "Nothing to update");
+      return;
+    }
+    handlePurchaseField(purchaseId, "status", "saving");
+    handlePurchaseField(purchaseId, "message", "");
+    try {
+      await updateProfilePurchase(token, purchaseId, payload);
+      handlePurchaseField(purchaseId, "status", "success");
+      handlePurchaseField(purchaseId, "message", "Block updated");
+      await onRefreshProfile?.();
+    } catch (error) {
+      handlePurchaseField(purchaseId, "status", "error");
+      handlePurchaseField(purchaseId, "message", error.message || "Update failed");
     }
   };
 
@@ -196,23 +267,72 @@ export default function ProfileManagerModal({ isOpen, onClose, profile, purchase
                 <div>
                   <strong>{profile.username}</strong>
                   <p>{profile.email}</p>
+                  <p className="profile-summary-pixels">
+                    Pixels owned: <span>{ownedPixels.toLocaleString()} px</span>
+                  </p>
+                  <p className="profile-summary-pixels">
+                    Donated (0.5%): <span>€{donatedEuros.toFixed(2)}</span>
+                  </p>
                 </div>
               </div>
 
-              <div className="profile-metrics">
-                <div className="profile-metric-card">
-                  <span>Pixels owned</span>
-                  <strong>{ownedPixels.toLocaleString()} px</strong>
-                </div>
-                <div className="profile-metric-card">
-                  <span>Donated thanks to you (0.5%)</span>
-                  <strong>€{donatedEuros.toFixed(2)}</strong>
-                </div>
+              <div className="profile-purchase-grid">
+                {purchases.map((purchase) => {
+                  const edit = purchaseEdits[purchase.id] || { link: "", imageData: null };
+                  return (
+                    <article key={purchase.id} className="profile-block-card">
+                      <div className="profile-block-header">
+                        <div>
+                          <span className="profile-block-label">Pixels</span>
+                          <strong>{Math.round(purchase.area || 0).toLocaleString()} px</strong>
+                        </div>
+                        <div>
+                          <span className="profile-block-label">Link</span>
+                          <input
+                            type="url"
+                            value={edit.link}
+                            onChange={(event) => handlePurchaseField(purchase.id, "link", event.target.value)}
+                            placeholder="https://yourwebsite.com"
+                          />
+                        </div>
+                      </div>
+                      <div className="profile-block-actions">
+                        <label className="profile-block-upload">
+                          <span>New image</span>
+                          <input type="file" accept="image/*" onChange={(event) => handlePurchaseImage(purchase.id, event)} />
+                        </label>
+                        <button
+                          type="button"
+                          className="profile-link-btn"
+                          onClick={() => handlePurchaseSave(purchase.id)}
+                          disabled={edit.status === "saving"}
+                        >
+                          {edit.status === "saving" ? "Saving…" : "Update block"}
+                        </button>
+                        <button
+                          type="button"
+                          className="profile-edit-banner"
+                          onClick={() => onEditPurchase?.(purchase)}
+                        >
+                          Open editor
+                        </button>
+                      </div>
+                      {edit.message && (
+                        <div
+                          className={`profile-block-message${
+                            edit.status === "error" ? " error" : edit.status === "success" ? " success" : ""
+                          }`}
+                        >
+                          {edit.message}
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+                {!purchases.length && (
+                  <div className="profile-empty-state">No pixel blocks claimed yet. Purchase something to get started!</div>
+                )}
               </div>
-
-              {!purchases.length && (
-                <div className="profile-empty-state">No pixel blocks claimed yet. Purchase something to get started!</div>
-              )}
             </div>
           )}
           {message && !hasProfile && (
