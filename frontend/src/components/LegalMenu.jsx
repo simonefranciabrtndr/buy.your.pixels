@@ -17,11 +17,26 @@ export default function LegalMenu({
   }, [activeId, documents]);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat("en-US"), []);
+  const currencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "EUR",
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    []
+  );
 
   const formatValue = (value, suffix = "") => {
     const numeric = Math.max(0, Math.round(value || 0));
     const formatted = numberFormatter.format(numeric);
     return suffix ? `${formatted}${suffix}` : formatted;
+  };
+
+  const formatCurrency = (value = 0) => {
+    const safeNumber = Number.isFinite(value) ? value : 0;
+    return currencyFormatter.format(Math.max(0, safeNumber));
   };
 
   const summaryMetrics = useMemo(
@@ -56,8 +71,13 @@ export default function LegalMenu({
         label: "Pixels being selected right now",
         value: formatValue(stats.currentSelectionPixels, " px"),
       },
+      {
+        id: "charityDonations",
+        label: "Donated to charity (0.5%)",
+        value: formatCurrency(stats.donationEuros),
+      },
     ],
-    [stats, numberFormatter]
+    [stats, numberFormatter, currencyFormatter]
   );
 
   useEffect(() => {

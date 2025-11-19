@@ -182,6 +182,8 @@ export default function Home() {
   const purchasedPixels = remotePurchasedPixels || localPurchasedPixels;
   const remoteAvailablePixels = Math.max(0, Math.round(presenceStats.availablePixels || 0));
   const availablePixels = remoteAvailablePixels || Math.max(0, totalPixels - purchasedPixels);
+  const totalRevenueEuros = Math.max(0, purchasedPixels * PRICE_PER_PIXEL);
+  const donationEuros = totalRevenueEuros * 0.005;
   const onlineUsers = Math.max(0, Math.round(presenceStats.onlineUsers || 0));
   const remoteActiveSelections = Math.max(0, Math.round(presenceStats.activeSelections || 0));
   const remoteSelectedPixels = Math.max(0, Math.round(presenceStats.selectedPixels || 0));
@@ -203,8 +205,10 @@ export default function Home() {
       onlineUsers,
       activeSelections: activeSelectors,
       currentSelectionPixels: currentSelectedPixels,
+      totalRevenueEuros,
+      donationEuros,
     }),
-    [totalPixels, purchasedPixels, availablePixels, onlineUsers, activeSelectors, currentSelectedPixels]
+    [totalPixels, purchasedPixels, availablePixels, onlineUsers, activeSelectors, currentSelectedPixels, totalRevenueEuros, donationEuros]
   );
 
   const clearHoverHideTimeout = useCallback(() => {
