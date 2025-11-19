@@ -42,9 +42,18 @@ const SAFE_MARGIN = 24;
  *    miniature preview proportional to the selected pixel area. Buttons to stop
  *    or finish editing return to the final step with the pay button.
  */
-export default function SelectionPopup({ area, price, onClose, onFinalizePurchase }) {
+export default function SelectionPopup({
+  area,
+  price,
+  onClose,
+  onFinalizePurchase,
+  mode = "purchase",
+  initialValues = {},
+  onFinalizeEdit,
+}) {
+  const isEditMode = mode === "edit";
   // step machine: summary → upload → link → final → editing
-  const [step, setStep] = useState("summary");
+  const [step, setStep] = useState(isEditMode ? "upload" : "summary");
   const [uploadedImage, setUploadedImage] = useState(null);
   const [link, setLink] = useState("");
   const [showPreview, setShowPreview] = useState(false);
@@ -456,19 +465,33 @@ export default function SelectionPopup({ area, price, onClose, onFinalizePurchas
 
   const trimmedLink = (link || "").trim();
 
+  const buildFinalizePayload = () => ({
+    rect: bounds,
+    tiles: areaTiles,
+    area: totalAreaPixels,
+    link: trimmedLink,
+    price,
+    uploadedImage,
+    imageTransform,
+    nsfw: isNsfw,
+    previewData: linkPreviewStatus === "success" ? linkPreviewData : null,
+  });
+
   const handlePaymentSuccess = (paymentInfo) => {
     if (onFinalizePurchase) {
       onFinalizePurchase({
-        rect: bounds,
-        tiles: areaTiles,
-        area: totalAreaPixels,
-        link: trimmedLink,
-        price,
-        uploadedImage,
-        imageTransform,
-        nsfw: isNsfw,
-        previewData: linkPreviewStatus === "success" ? linkPreviewData : null,
+        ...buildFinalizePayload(),
         payment: paymentInfo,
+      });
+    }
+    handleClose();
+  };
+
+  const handleEditSave = () => {
+    if (onFinalizeEdit) {
+      onFinalizeEdit({
+        ...buildFinalizePayload(),
+        purchaseId: initialValues.id,
       });
     }
     handleClose();
@@ -476,6 +499,20 @@ export default function SelectionPopup({ area, price, onClose, onFinalizePurchas
 
   /** Render summary step */
   if (step === "summary") {
+    if (isEditMode) {
+      return (
+        <div className={popupClassName} ref={popupRef} style={popupStyle}>
+          <button className="close-btn" onClick={handleClose}>×</button>
+          <div className="popup-body">
+            <h3>Edit your banner</h3>
+            <p className="final-text">Reload the uploader to replace the image or adjust the link.</p>
+            <button className="popup-continue" onClick={() => setStep("upload")}>
+              Start editing
+            </button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={popupClassName} ref={popupRef} style={popupStyle}>
         <button className="close-btn" onClick={handleClose}>×</button>
@@ -716,7 +753,15 @@ export default function SelectionPopup({ area, price, onClose, onFinalizePurchas
         >
           Edit
         </button>
-        <button className="popup-continue" onClick={() => setStep("payment")}>Pay</button>
+        {isEditMode ? (
+          <button className="popup-continue" onClick={handleEditSave}>
+            Save changes
+          </button>
+        ) : (
+          <button className="popup-continue" onClick={() => setStep("payment")}>
+            Pay
+          </button>
+        )}
       </div>
     );
 
@@ -792,7 +837,7 @@ export default function SelectionPopup({ area, price, onClose, onFinalizePurchas
     );
   }
 
-  if (step === "payment") {
+  if (!isEditMode && step === "payment") {
     return (
       <>
         <CanvasOverlay area={area} imageSrc={showPreview ? uploadedImage : null} transform={imageTransform} />
@@ -814,3 +859,14 @@ export default function SelectionPopup({ area, price, onClose, onFinalizePurchas
 
   return null;
 }
+  useEffect(() => {
+    setStep(isEditMode ? "upload" : "summary");
+  }, [isEditMode, bounds?.x, bounds?.y]);
+
+  useEffect(() => {
+    if (!isEditMode) return;
+    setUploadedImage(initialValues.uploadedImage || null);
+    setLink(initialValues.link || "");
+    setIsNsfw(Boolean(initialValues.isNsfw));
+    setImageTransform(initialValues.imageTransform || DEFAULT_TRANSFORM);
+  }, [isEditMode, initialValues]);

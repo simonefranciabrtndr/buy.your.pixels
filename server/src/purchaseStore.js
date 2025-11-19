@@ -161,7 +161,7 @@ export const listPurchasesByProfile = async (profileId) => {
   return rows.map(normalizePurchase);
 };
 
-export const updateOwnedPurchase = async (profileId, purchaseId, { link, uploadedImage }) => {
+export const updateOwnedPurchase = async (profileId, purchaseId, { link, uploadedImage, imageTransform, nsfw, previewData }) => {
   if (!pool || !profileId) {
     throw new Error("Unauthorized");
   }
@@ -174,6 +174,18 @@ export const updateOwnedPurchase = async (profileId, purchaseId, { link, uploade
   if (typeof uploadedImage !== "undefined") {
     updates.push(`uploaded_image = $${values.length + 1}`);
     values.push(uploadedImage || null);
+  }
+  if (typeof imageTransform !== "undefined") {
+    updates.push(`image_transform = $${values.length + 1}`);
+    values.push(JSON.stringify(imageTransform || {}));
+  }
+  if (typeof previewData !== "undefined") {
+    updates.push(`preview_data = $${values.length + 1}`);
+    values.push(JSON.stringify(previewData || {}));
+  }
+  if (typeof nsfw !== "undefined") {
+    updates.push(`nsfw = $${values.length + 1}`);
+    values.push(Boolean(nsfw));
   }
   if (!updates.length) {
     throw new Error("No updates submitted");

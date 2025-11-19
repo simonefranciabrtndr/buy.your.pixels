@@ -379,11 +379,14 @@ export const createApp = () => {
 
   app.put("/api/profile/purchases/:purchaseId", requireProfileAuth, async (req, res) => {
     const { purchaseId } = req.params;
-    const { link, uploadedImage } = req.body || {};
+    const { link, uploadedImage, imageTransform, nsfw, previewData } = req.body || {};
     try {
       const updated = await updateOwnedPurchase(req.profileId, purchaseId, {
         link,
         uploadedImage,
+        imageTransform,
+        nsfw,
+        previewData,
       });
       res.json(updated);
     } catch (error) {

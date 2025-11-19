@@ -18,6 +18,7 @@ export default function ProfileManagerModal({
   token,
   onProfileSync,
   onRefreshProfile,
+  onEditPurchase,
 }) {
   const [form, setForm] = useState({
     email: "",
@@ -56,7 +57,6 @@ export default function ProfileManagerModal({
       purchases.forEach((purchase) => {
         next[purchase.id] = {
           link: purchase.link || "",
-          imageData: null,
           status: "idle",
           message: "",
         };
@@ -117,16 +117,6 @@ export default function ProfileManagerModal({
     }));
   };
 
-  const handlePurchaseImage = async (id, event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      handlePurchaseField(id, "imageData", null);
-      return;
-    }
-    const dataUrl = await readFileAsDataUrl(file);
-    handlePurchaseField(id, "imageData", dataUrl);
-  };
-
   const handlePurchaseSave = async (purchaseId) => {
     if (!token) return;
     const edit = purchaseEdits[purchaseId];
@@ -135,9 +125,6 @@ export default function ProfileManagerModal({
     const payload = {};
     if (typeof edit.link !== "undefined" && edit.link !== (original.link || "")) {
       payload.link = edit.link;
-    }
-    if (edit.imageData) {
-      payload.uploadedImage = edit.imageData;
     }
     if (!Object.keys(payload).length) {
       handlePurchaseField(purchaseId, "message", "Nothing to update");
@@ -270,7 +257,7 @@ export default function ProfileManagerModal({
 
               <div className="profile-purchase-grid">
                 {purchases.map((purchase) => {
-                  const edit = purchaseEdits[purchase.id] || { link: "", imageData: null };
+                  const edit = purchaseEdits[purchase.id] || { link: "" };
                   return (
                     <article key={purchase.id} className="profile-block-card">
                       <div className="profile-block-header">
@@ -286,19 +273,23 @@ export default function ProfileManagerModal({
                             onChange={(event) => handlePurchaseField(purchase.id, "link", event.target.value)}
                             placeholder="https://yourwebsite.com"
                           />
+                          <button
+                            type="button"
+                            className="profile-link-btn"
+                            onClick={() => handlePurchaseSave(purchase.id)}
+                            disabled={edit.status === "saving"}
+                          >
+                            {edit.status === "saving" ? "Saving…" : "Update link"}
+                          </button>
                         </div>
                       </div>
                       <div className="profile-block-actions">
-                        <label className="profile-block-upload">
-                          <span>New image</span>
-                          <input type="file" accept="image/*" onChange={(event) => handlePurchaseImage(purchase.id, event)} />
-                        </label>
                         <button
                           type="button"
-                          onClick={() => handlePurchaseSave(purchase.id)}
-                          disabled={edit.status === "saving"}
+                          className="profile-edit-banner"
+                          onClick={() => onEditPurchase?.(purchase)}
                         >
-                          {edit.status === "saving" ? "Saving…" : "Update block"}
+                          Open editor
                         </button>
                       </div>
                       {edit.message && (
