@@ -40,11 +40,17 @@ const addOriginVariants = (set, origin) => {
 const allowedOrigins = (() => {
   const combined = [process.env.ALLOWED_ORIGINS, process.env.APP_BASE_URL].filter(Boolean).join(",");
   const parsed = parseOrigins(combined);
-  if (parsed.length === 0) {
-    return ["http://localhost:5173"];
-  }
   const set = new Set();
   parsed.forEach((origin) => addOriginVariants(set, origin));
+
+  if (set.size === 0) {
+    addOriginVariants(set, "http://localhost:5173");
+  }
+
+  ["https://yourpixels.online", "https://www.yourpixels.online"].forEach((origin) => {
+    addOriginVariants(set, origin);
+  });
+
   return Array.from(set);
 })();
 

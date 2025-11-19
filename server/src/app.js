@@ -59,40 +59,64 @@ export const createApp = () => {
       availableMethods: [],
       summary: buildSelectionSummary(area),
     };
+    const providerErrors = [];
 
     try {
       if (stripeClient && config.stripe.publishableKey) {
-        const paymentIntent = await stripeClient.paymentIntents.create({
-          amount: amountInMinor,
-          currency: currency.toLowerCase(),
-          automatic_payment_methods: { enabled: true },
-          metadata: {
-            sessionId,
-            ...metadata,
-          },
-        });
+        try {
+          const paymentIntent = await stripeClient.paymentIntents.create({
+            amount: amountInMinor,
+            currency: currency.toLowerCase(),
+            automatic_payment_methods: { enabled: true },
+            metadata: {
+              sessionId,
+              ...metadata,
+            },
+          });
 
-        response.stripe = {
-          clientSecret: paymentIntent.client_secret,
-          publishableKey: config.stripe.publishableKey,
-          paymentIntentId: paymentIntent.id,
-        };
-        response.availableMethods.push("stripe");
+          response.stripe = {
+            clientSecret: paymentIntent.client_secret,
+            publishableKey: config.stripe.publishableKey,
+            paymentIntentId: paymentIntent.id,
+          };
+          response.availableMethods.push("stripe");
+        } catch (stripeErr) {
+          console.error("Stripe PaymentIntent failed", stripeErr);
+          providerErrors.push({
+            provider: "stripe",
+            message: stripeErr?.message || "Stripe is temporarily unavailable",
+          });
+        }
       }
 
-      const paypalOrder = await createPayPalOrder({
-        amount: amountInMinor,
-        currency,
-        referenceId: sessionId,
-        description: "Buy Your Pixels order",
-      });
+      try {
+        const paypalOrder = await createPayPalOrder({
+          amount: amountInMinor,
+          currency,
+          referenceId: sessionId,
+          description: "Buy Your Pixels order",
+        });
 
-      if (paypalOrder) {
-        response.paypal = {
-          orderId: paypalOrder.orderId,
-          clientId: config.paypal.clientId,
-        };
-        response.availableMethods.push("paypal");
+        if (paypalOrder) {
+          response.paypal = {
+            orderId: paypalOrder.orderId,
+            clientId: config.paypal.clientId,
+          };
+          response.availableMethods.push("paypal");
+        }
+      } catch (paypalErr) {
+        console.error("PayPal order creation failed", paypalErr);
+        providerErrors.push({
+          provider: "paypal",
+          message: paypalErr?.message || "PayPal is temporarily unavailable",
+        });
+      }
+
+      if (!response.availableMethods.length) {
+        return res.status(503).json({
+          error: "No payment methods available",
+          details: providerErrors,
+        });
       }
 
       sessions.set(sessionId, {
