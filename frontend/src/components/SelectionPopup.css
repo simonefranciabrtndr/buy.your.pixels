@@ -3,7 +3,7 @@
   /* horizontal positioning (left or right) will be supplied via inline styles from the component */
   width: 420px;
   --popup-radius: 26px;
-  --close-gap: 0px;
+  --close-gap: 14px;
   --close-size: calc(var(--popup-radius) * 2);
   --popup-bg: rgba(20,20,30,0.6);
   background: var(--popup-bg);
