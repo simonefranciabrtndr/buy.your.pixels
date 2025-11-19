@@ -24,8 +24,8 @@ const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKe
 const sessions = new Map();
 const developerSessions = new Map();
 const DEVELOPER_SESSION_TTL = 1000 * 60 * 60 * 12; // 12 hours
-const profileSessions = new Map();
 const PROFILE_SESSION_TTL = 1000 * 60 * 60 * 24 * 7; // 7 days
+const PROFILE_TOKEN_SECRET = process.env.PROFILE_TOKEN_SECRET || config.stripe.secretKey || "profile-secret";
 
 const buildSelectionSummary = (area) => {
   if (!area) return null;
@@ -64,21 +64,28 @@ const requireDeveloperAuth = (req, res, next) => {
 };
 
 const createProfileSession = (profileId) => {
-  const token = uuid();
-  profileSessions.set(token, { profileId, createdAt: Date.now() });
-  return token;
+  const timestamp = Date.now();
+  const base = `${profileId}.${timestamp}`;
+  const signature = crypto.createHmac("sha256", PROFILE_TOKEN_SECRET).update(base).digest("hex");
+  return `${base}.${signature}`;
 };
 
 const verifyProfileToken = (token) => {
   if (!token) return null;
-  const session = profileSessions.get(token);
-  if (!session) return null;
-  const expired = Date.now() - session.createdAt > PROFILE_SESSION_TTL;
-  if (expired) {
-    profileSessions.delete(token);
+  const segments = token.split(".");
+  if (segments.length !== 3) return null;
+  const [profileId, timestampStr, signature] = segments;
+  const timestamp = Number(timestampStr);
+  if (!profileId || !timestamp || !signature) return null;
+  const base = `${profileId}.${timestamp}`;
+  const expected = crypto.createHmac("sha256", PROFILE_TOKEN_SECRET).update(base).digest("hex");
+  if (expected.length !== signature.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature))) {
     return null;
   }
-  return session.profileId;
+  const expired = Date.now() - timestamp > PROFILE_SESSION_TTL;
+  if (expired) return null;
+  return profileId;
 };
 
 const requireProfileAuth = async (req, res, next) => {
