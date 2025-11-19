@@ -1,12 +1,23 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { registerProfile } from "../api/profile";
 import "./ProfileManagerModal.css";
 
-export default function ProfileManagerModal({ isOpen, onClose }) {
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+export default function ProfileManagerModal({ isOpen, onClose, initialProfile, onSaved }) {
   const [form, setForm] = useState({
     email: "",
     username: "",
     password: "",
     avatarFile: null,
+    avatarData: null,
+    subscribeNewsletter: true,
   });
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [status, setStatus] = useState("idle");
@@ -14,34 +25,65 @@ export default function ProfileManagerModal({ isOpen, onClose }) {
 
   const canSubmit = useMemo(() => form.email && form.username && form.password, [form]);
 
+  useEffect(() => {
+    if (isOpen && initialProfile) {
+      setForm((prev) => ({
+        ...prev,
+        email: initialProfile.email || "",
+        username: initialProfile.username || "",
+        avatarData: initialProfile.avatarData || null,
+      }));
+      setAvatarPreview(initialProfile.avatarData || null);
+    }
+  }, [isOpen, initialProfile]);
+
   if (!isOpen) return null;
 
   const handleChange = (field) => (event) => {
     setForm((prev) => ({ ...prev, [field]: event.target.value }));
   };
 
-  const handleAvatarChange = (event) => {
+  const handleAvatarChange = async (event) => {
     const file = event.target.files?.[0];
     setForm((prev) => ({ ...prev, avatarFile: file || null }));
     if (file) {
-      const url = URL.createObjectURL(file);
+      const url = await readFileAsDataUrl(file);
+      setForm((prev) => ({ ...prev, avatarData: url }));
       setAvatarPreview(url);
     } else {
+      setForm((prev) => ({ ...prev, avatarData: null, avatarFile: null }));
       setAvatarPreview(null);
     }
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     if (!canSubmit) return;
     setStatus("submitting");
     setMessage("");
-    setTimeout(() => {
+    try {
+      await registerProfile({
+        email: form.email,
+        username: form.username,
+        subscribeNewsletter: form.subscribeNewsletter,
+      });
       setStatus("success");
-      setMessage(
-        "Profile saved! You can now update your pixel artwork, linked website and NSFW preference at any time."
-      );
-    }, 900);
+      setMessage("Profile saved! Check your inbox for a thank-you email.");
+      const savedProfile = {
+        email: form.email,
+        username: form.username,
+        avatarData: form.avatarData || avatarPreview || null,
+      };
+      onSaved?.(savedProfile);
+      setTimeout(() => {
+        setStatus("idle");
+        setMessage("");
+        onClose?.();
+      }, 1200);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error.message || "Unable to save your profile right now.");
+    }
   };
 
   return (
@@ -101,6 +143,19 @@ export default function ProfileManagerModal({ isOpen, onClose }) {
               </div>
               <small>Square images work best. Max 2MB.</small>
             </label>
+            <label className="profile-field profile-newsletter-toggle">
+              <span>Newsletter</span>
+              <div className="profile-toggle-row">
+                <input
+                  type="checkbox"
+                  checked={form.subscribeNewsletter}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, subscribeNewsletter: event.target.checked }))
+                  }
+                />
+                <p>Opt-in for monthly progress updates and artist spotlights.</p>
+              </div>
+            </label>
             <button type="submit" className="profile-submit-btn" disabled={!canSubmit || status === "submitting"}>
               {status === "submitting" ? "Saving…" : "Create profile"}
             </button>
@@ -119,7 +174,12 @@ export default function ProfileManagerModal({ isOpen, onClose }) {
           </section>
 
           {message && (
-            <div className={`profile-status-message${status === "success" ? " success" : ""}`} role="status">
+            <div
+              className={`profile-status-message${
+                status === "success" ? " success" : status === "error" ? " error" : ""
+              }`}
+              role="status"
+            >
               {message}
             </div>
           )}

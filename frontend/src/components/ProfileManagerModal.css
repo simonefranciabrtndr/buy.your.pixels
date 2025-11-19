@@ -137,6 +137,23 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
+.profile-newsletter-toggle .profile-toggle-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.profile-newsletter-toggle input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+}
+
+.profile-newsletter-toggle p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.75);
+}
+
 .profile-submit-btn {
   width: 100%;
   margin-top: 12px;
@@ -185,6 +202,11 @@
 .profile-status-message.success {
   border-color: rgba(43, 187, 67, 0.5);
   background: rgba(43, 187, 67, 0.15);
+}
+
+.profile-status-message.error {
+  border-color: rgba(255, 86, 86, 0.5);
+  background: rgba(255, 86, 86, 0.15);
 }
 
 @media (max-width: 640px) {

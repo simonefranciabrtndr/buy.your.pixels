@@ -8,6 +8,7 @@ import { config } from "./config.js";
 import { capturePayPalOrder, createPayPalOrder } from "./paypal.js";
 import { touchPresence, getPresenceStats } from "./presenceStore.js";
 import { listPurchases, recordPurchase, sumPurchasedPixels, updatePurchaseModeration } from "./purchaseStore.js";
+import { sendProfileWelcome } from "./notifications.js";
 
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: "2024-06-20" }) : null;
 
@@ -239,6 +240,24 @@ export const createApp = () => {
     } catch (error) {
       console.error("Developer update purchase failed", error);
       res.status(500).json({ error: "Unable to update purchase" });
+    }
+  });
+
+  app.post("/api/profile/register", async (req, res) => {
+    const { email, username, subscribeNewsletter } = req.body || {};
+    if (!email || !username) {
+      return res.status(400).json({ error: "Email and username are required" });
+    }
+    try {
+      await sendProfileWelcome({
+        email,
+        username,
+        subscribeNewsletter: Boolean(subscribeNewsletter),
+      });
+      res.json({ status: "ok" });
+    } catch (error) {
+      console.error("Profile registration failed", error);
+      res.status(500).json({ error: "Unable to complete profile registration" });
     }
   });
 

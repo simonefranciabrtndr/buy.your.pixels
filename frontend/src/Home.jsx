@@ -11,6 +11,7 @@ import "./components/PurchasedArea.css";
 
 const DEFAULT_TRANSFORM = { x: 0, y: 0, width: 1, height: 1 };
 const PRICE_PER_PIXEL = 0.02;
+const PROFILE_STORAGE_KEY = "buyYourPixels.profile";
 
 const rectArea = (rect) => (rect?.w ?? 0) * (rect?.h ?? 0);
 
@@ -161,6 +162,7 @@ export default function Home() {
   const [isLegalMenuOpen, setIsLegalMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState(false);
+  const [profile, setProfile] = useState(null);
   const presenceStats = usePresenceStats();
 
   const viewportPixels = useMemo(() => {
@@ -238,6 +240,12 @@ export default function Home() {
   const closeProfileModal = useCallback(() => setIsProfileModalOpen(false), []);
   const openDeveloperModal = useCallback(() => setIsDeveloperModalOpen(true), []);
   const closeDeveloperModal = useCallback(() => setIsDeveloperModalOpen(false), []);
+  const handleProfileSaved = useCallback((savedProfile) => {
+    setProfile(savedProfile);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(savedProfile));
+    }
+  }, []);
 
   useEffect(() => () => clearHoverHideTimeout(), [clearHoverHideTimeout]);
 
@@ -250,6 +258,18 @@ export default function Home() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = window.localStorage.getItem(PROFILE_STORAGE_KEY);
+    if (stored) {
+      try {
+        setProfile(JSON.parse(stored));
+      } catch {
+        window.localStorage.removeItem(PROFILE_STORAGE_KEY);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -1138,7 +1158,9 @@ export default function Home() {
       })()}
 
       <div
-        className={`center-hamburger${liveRect || selectionShape ? " hidden" : ""}`}
+        className={`center-hamburger${liveRect || selectionShape ? " hidden" : ""}${
+          profile?.avatarData ? " has-profile" : ""
+        }`}
         aria-label="Open legal menu"
         role="button"
         tabIndex={0}
@@ -1153,9 +1175,20 @@ export default function Home() {
         aria-controls="legalMenuPanel"
         title="Legal documentation"
       >
-        <span />
-        <span />
-        <span />
+        {profile?.avatarData ? (
+          <img
+            src={profile.avatarData}
+            alt={profile.username || "Profile avatar"}
+            className="hamburger-avatar"
+            draggable={false}
+          />
+        ) : (
+          <>
+            <span />
+            <span />
+            <span />
+          </>
+        )}
       </div>
 
       <LegalMenu
@@ -1166,7 +1199,12 @@ export default function Home() {
         onRequestProfile={openProfileModal}
         panelId="legalMenuPanel"
       />
-      <ProfileManagerModal isOpen={isProfileModalOpen} onClose={closeProfileModal} />
+      <ProfileManagerModal
+        isOpen={isProfileModalOpen}
+        onClose={closeProfileModal}
+        initialProfile={profile}
+        onSaved={handleProfileSaved}
+      />
       <DeveloperConsole isOpen={isDeveloperModalOpen} onClose={closeDeveloperModal} />
     </div>
   );
