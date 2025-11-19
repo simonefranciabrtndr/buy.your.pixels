@@ -88,6 +88,8 @@ export default function LegalMenu({
               <div>
                 <span className="legal-profile-pixels-label">Pixels owned</span>
                 <p className="legal-profile-pixels-value">{formatValue(stats.profilePixels, " px")}</p>
+                <span className="legal-profile-pixels-label">Donated (0.5%)</span>
+                <p className="legal-profile-pixels-value">{formatCurrency(stats.profileDonation || 0)}</p>
               </div>
             </div>
           ) : (
