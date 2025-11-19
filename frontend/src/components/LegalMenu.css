@@ -133,6 +133,15 @@
   outline: none;
 }
 
+.legal-profile-thumb {
+  display: block;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  object-fit: cover;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
 .legal-menu-body {
   display: flex;
   gap: 18px;

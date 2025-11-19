@@ -213,8 +213,19 @@ export default function Home() {
       currentSelectionPixels: currentSelectedPixels,
       totalRevenueEuros,
       donationEuros,
+      profileAvatar: profile?.avatarData || null,
     }),
-    [totalPixels, purchasedPixels, availablePixels, onlineUsers, activeSelectors, currentSelectedPixels, totalRevenueEuros, donationEuros]
+    [
+      totalPixels,
+      purchasedPixels,
+      availablePixels,
+      onlineUsers,
+      activeSelectors,
+      currentSelectionPixels,
+      totalRevenueEuros,
+      donationEuros,
+      profile?.avatarData,
+    ]
   );
 
   const clearHoverHideTimeout = useCallback(() => {
@@ -1158,9 +1169,7 @@ export default function Home() {
       })()}
 
       <div
-        className={`center-hamburger${liveRect || selectionShape ? " hidden" : ""}${
-          profile?.avatarData ? " has-profile" : ""
-        }`}
+        className={`center-hamburger${liveRect || selectionShape ? " hidden" : ""}`}
         aria-label="Open legal menu"
         role="button"
         tabIndex={0}
@@ -1175,20 +1184,9 @@ export default function Home() {
         aria-controls="legalMenuPanel"
         title="Legal documentation"
       >
-        {profile?.avatarData ? (
-          <img
-            src={profile.avatarData}
-            alt={profile.username || "Profile avatar"}
-            className="hamburger-avatar"
-            draggable={false}
-          />
-        ) : (
-          <>
-            <span />
-            <span />
-            <span />
-          </>
-        )}
+        <span />
+        <span />
+        <span />
       </div>
 
       <LegalMenu

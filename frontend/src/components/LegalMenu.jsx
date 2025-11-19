@@ -80,7 +80,11 @@ export default function LegalMenu({
       {
         id: "profileManager",
         label: "Manage your pixels",
-        value: "Create profile",
+        value: stats.profileAvatar ? (
+          <img src={stats.profileAvatar} alt="Profile avatar" className="legal-profile-thumb" />
+        ) : (
+          "Create profile"
+        ),
         action: "profile",
       },
     ],
