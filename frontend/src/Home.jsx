@@ -1,6 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback, useLayoutEffect, useMemo } from "react";
 import SelectionPopup from "./components/SelectionPopup";
 import LegalMenu from "./components/LegalMenu";
+import ProfileManagerModal from "./components/ProfileManagerModal";
 import { legalDocuments } from "./legal/legalDocs";
 import { usePresenceStats } from "./hooks/usePresenceStats";
 import { usePresenceSync } from "./hooks/usePresenceSync";
@@ -157,6 +158,7 @@ export default function Home() {
   const hoverPreviewFetchRef = useRef(null);
   const hoverHideTimeoutRef = useRef(null);
   const [isLegalMenuOpen, setIsLegalMenuOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const presenceStats = usePresenceStats();
 
   const viewportPixels = useMemo(() => {
@@ -230,6 +232,8 @@ export default function Home() {
 
   const openLegalMenu = useCallback(() => setIsLegalMenuOpen(true), []);
   const closeLegalMenu = useCallback(() => setIsLegalMenuOpen(false), []);
+  const openProfileModal = useCallback(() => setIsProfileModalOpen(true), []);
+  const closeProfileModal = useCallback(() => setIsProfileModalOpen(false), []);
 
   useEffect(() => () => clearHoverHideTimeout(), [clearHoverHideTimeout]);
 
@@ -1144,8 +1148,10 @@ export default function Home() {
         onClose={closeLegalMenu}
         documents={legalDocuments}
         stats={legalStats}
+        onRequestProfile={openProfileModal}
         panelId="legalMenuPanel"
       />
+      <ProfileManagerModal isOpen={isProfileModalOpen} onClose={closeProfileModal} />
     </div>
   );
 }

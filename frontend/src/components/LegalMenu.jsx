@@ -7,6 +7,7 @@ export default function LegalMenu({
   documents = [],
   panelId = "legalMenuPanel",
   stats = {},
+  onRequestProfile,
 }) {
   const [activeId, setActiveId] = useState(() => documents[0]?.id ?? null);
   const firstButtonRef = useRef(null);
@@ -76,6 +77,12 @@ export default function LegalMenu({
         label: "Donated to charity (0.5%)",
         value: formatCurrency(stats.donationEuros),
       },
+      {
+        id: "profileManager",
+        label: "Manage your pixels",
+        value: "Create profile",
+        isAction: true,
+      },
     ],
     [stats, numberFormatter, currencyFormatter]
   );
@@ -136,12 +143,26 @@ export default function LegalMenu({
         </header>
 
         <div className="legal-stats-grid">
-          {summaryMetrics.map((metric) => (
-            <article key={metric.id} className="legal-stat-card">
-              <p className="legal-stat-label">{metric.label}</p>
-              <p className="legal-stat-value">{metric.value}</p>
-            </article>
-          ))}
+          {summaryMetrics.map((metric) => {
+            const isAction = metric.isAction;
+            const CardTag = isAction ? "button" : "article";
+            const cardProps = isAction
+              ? {
+                  type: "button",
+                  onClick: () => onRequestProfile?.(),
+                }
+              : {};
+            return (
+              <CardTag
+                key={metric.id}
+                className={`legal-stat-card${isAction ? " legal-stat-card--action" : ""}`}
+                {...cardProps}
+              >
+                <p className="legal-stat-label">{metric.label}</p>
+                <p className="legal-stat-value">{metric.value}</p>
+              </CardTag>
+            );
+          })}
         </div>
 
         <div className="legal-menu-body">

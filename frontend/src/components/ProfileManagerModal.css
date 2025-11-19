@@ -1,0 +1,204 @@
+.profile-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(2, 4, 12, 0.8);
+  backdrop-filter: blur(24px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.profile-modal {
+  position: relative;
+  width: min(720px, calc(100vw - 40px));
+  max-height: calc(100vh - 80px);
+  padding: 36px 40px;
+  border-radius: 28px;
+  background: rgba(12, 14, 24, 0.9);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 32px rgba(255, 165, 0, 0.25);
+  color: #fff;
+  overflow-y: auto;
+  font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.profile-close-btn {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 165, 0, 0.4);
+  background: rgba(10, 10, 18, 0.9);
+  color: #fff;
+  font-size: 26px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 14px rgba(0, 0, 0, 0.45),
+    0 0 22px rgba(255, 165, 0, 0.35);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-close-btn:hover {
+  transform: scale(1.05);
+}
+
+.profile-modal-body header {
+  margin-bottom: 24px;
+}
+
+.profile-modal-kicker {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.32em;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 8px;
+}
+
+.profile-modal-body h3 {
+  margin: 0 0 8px;
+  font-size: 30px;
+}
+
+.profile-modal-subtitle {
+  color: rgba(255, 255, 255, 0.75);
+  margin: 0;
+}
+
+.profile-form-card,
+.profile-info-card {
+  border-radius: 22px;
+  background: linear-gradient(160deg, rgba(18, 20, 36, 0.95), rgba(12, 14, 28, 0.9));
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02), 0 16px 32px rgba(0, 0, 0, 0.35);
+  padding: 24px;
+  margin-bottom: 18px;
+}
+
+.profile-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+  font-size: 15px;
+}
+
+.profile-field span {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.profile-field input[type="email"],
+.profile-field input[type="text"],
+.profile-field input[type="password"] {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 9, 16, 0.9);
+  padding: 14px 16px;
+  color: #fff;
+  font-size: 15px;
+}
+
+.profile-avatar-upload .profile-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.profile-avatar-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+.profile-avatar-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-field small {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.profile-submit-btn {
+  width: 100%;
+  margin-top: 12px;
+  border: none;
+  border-radius: 16px;
+  padding: 14px 18px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(135deg, #0a84ff, #0066ff);
+  box-shadow: 0 18px 28px rgba(10, 132, 255, 0.35);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.profile-info-card h4 {
+  margin: 0 0 12px;
+}
+
+.profile-info-card ul {
+  margin: 0 0 12px;
+  padding-left: 22px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.profile-info-note {
+  margin: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.profile-status-message {
+  border-radius: 18px;
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.profile-status-message.success {
+  border-color: rgba(43, 187, 67, 0.5);
+  background: rgba(43, 187, 67, 0.15);
+}
+
+@media (max-width: 640px) {
+  .profile-modal {
+    padding: 28px;
+  }
+
+  .profile-avatar-upload .profile-avatar-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .profile-avatar-thumb {
+    width: 60px;
+    height: 60px;
+  }
+}
