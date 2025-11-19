@@ -798,6 +798,11 @@ export default function Home() {
           linkPreviewCacheRef.current.set(saved.link, saved.previewData);
         }
         if (profile?.token) {
+          syncProfile({
+            token: profile.token,
+            profile: profile.profile,
+            purchases: [...(profile.purchases || []), saved],
+          });
           refreshProfile();
         }
       } catch (error) {
