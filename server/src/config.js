@@ -15,12 +15,37 @@ const parseOrigins = (value) => {
     .filter(Boolean);
 };
 
+const normalizeOrigin = (value) => {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const host = url.port ? `${url.hostname}:${url.port}` : url.hostname;
+    return `${url.protocol}//${host}`;
+  } catch {
+    return value.replace(/\/+$/, "");
+  }
+};
+
+const addOriginVariants = (set, origin) => {
+  const normalized = normalizeOrigin(origin);
+  if (!normalized) return;
+  set.add(normalized);
+  if (normalized.includes("://www.")) {
+    set.add(normalized.replace("://www.", "://"));
+  } else if (normalized.includes("://")) {
+    set.add(normalized.replace("://", "://www."));
+  }
+};
+
 const allowedOrigins = (() => {
-  const parsed = parseOrigins(process.env.APP_BASE_URL);
+  const combined = [process.env.ALLOWED_ORIGINS, process.env.APP_BASE_URL].filter(Boolean).join(",");
+  const parsed = parseOrigins(combined);
   if (parsed.length === 0) {
     return ["http://localhost:5173"];
   }
-  return parsed;
+  const set = new Set();
+  parsed.forEach((origin) => addOriginVariants(set, origin));
+  return Array.from(set);
 })();
 
 export const config = {
