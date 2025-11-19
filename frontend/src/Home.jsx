@@ -3,7 +3,7 @@ import SelectionPopup from "./components/SelectionPopup";
 import LegalMenu from "./components/LegalMenu";
 import ProfileManagerModal from "./components/ProfileManagerModal";
 import DeveloperConsole from "./components/DeveloperConsole";
-import { fetchProfile, updateProfilePurchase } from "./api/profile";
+import { fetchProfile } from "./api/profile";
 import { legalDocuments } from "./legal/legalDocs";
 import { usePresenceStats } from "./hooks/usePresenceStats";
 import { usePresenceSync } from "./hooks/usePresenceSync";
@@ -177,7 +177,6 @@ export default function Home() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState(false);
   const [profile, setProfile] = useState(() => loadStoredProfile());
-  const [editingPurchase, setEditingPurchase] = useState(null);
   const presenceStats = usePresenceStats();
   const persistProfile = useCallback((value) => {
     if (typeof window === "undefined") return;
@@ -319,34 +318,6 @@ export default function Home() {
       syncProfile(savedProfile);
     },
     [syncProfile]
-  );
-  const handleEditProfilePurchase = useCallback((purchase) => {
-    setIsProfileModalOpen(false);
-    setEditingPurchase(purchase);
-  }, []);
-
-  const handleEditFinalize = useCallback(
-    async (updates) => {
-      if (!editingPurchase || !profile?.token) {
-        setEditingPurchase(null);
-        return;
-      }
-      try {
-        await updateProfilePurchase(profile.token, editingPurchase.id, {
-          link: updates.link,
-          uploadedImage: updates.uploadedImage,
-          imageTransform: updates.imageTransform,
-          nsfw: updates.nsfw,
-          previewData: updates.previewData,
-        });
-        await refreshProfile();
-      } catch (error) {
-        console.error("Failed to update purchase", error);
-      } finally {
-        setEditingPurchase(null);
-      }
-    },
-    [editingPurchase, profile?.token, refreshProfile]
   );
 
   useEffect(() => () => clearHoverHideTimeout(), [clearHoverHideTimeout]);
@@ -1300,29 +1271,8 @@ export default function Home() {
         token={profile?.token || null}
         onProfileSync={handleProfileSaved}
         onRefreshProfile={refreshProfile}
-        onEditPurchase={handleEditProfilePurchase}
       />
       <DeveloperConsole isOpen={isDeveloperModalOpen} onClose={closeDeveloperModal} />
-      {editingPurchase && (
-        <SelectionPopup
-          area={{
-            rect: editingPurchase.rect,
-            tiles: editingPurchase.tiles,
-            area: editingPurchase.area,
-          }}
-          price={Number(editingPurchase.price || 0).toFixed(2)}
-          mode="edit"
-          initialValues={{
-            id: editingPurchase.id,
-            link: editingPurchase.link || "",
-            uploadedImage: editingPurchase.uploadedImage || null,
-            imageTransform: editingPurchase.imageTransform || DEFAULT_TRANSFORM,
-            isNsfw: editingPurchase.nsfw,
-          }}
-          onClose={() => setEditingPurchase(null)}
-          onFinalizeEdit={handleEditFinalize}
-        />
-      )}
     </div>
   );
 }
