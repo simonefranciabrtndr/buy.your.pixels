@@ -768,7 +768,6 @@ export default function Home() {
       resetAnimationState();
 
       try {
-        const saved = await createPurchase(
           {
             id: areaId,
             rect: baseArea.rect,
@@ -825,7 +824,7 @@ export default function Home() {
         }
       }
     },
-    [createPurchase, fetchLinkPreview, resetAnimationState]
+    [createPurchase, fetchLinkPreview, resetAnimationState, profile, refreshProfile, syncProfile]
   );
 
   const handleAreaMouseLeave = useCallback((event) => {
