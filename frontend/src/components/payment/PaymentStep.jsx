@@ -10,9 +10,9 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
 
-  const [stripeApi, setStripeApi] = useState({ stripe: null, elements: null, card: null });
+  const [stripeApi, setStripeApi] = useState({ stripe: null, elements: null, paymentElement: null });
   const [stripeProcessing, setStripeProcessing] = useState(false);
-  const cardContainerRef = useRef(null);
+  const paymentElementRef = useRef(null);
 
   const paypalContainerRef = useRef(null);
   const paypalRenderedRef = useRef(false);
@@ -28,7 +28,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     if (!price || !area) return;
     setStatus("loading");
     setError(null);
-    setStripeApi({ stripe: null, elements: null, card: null });
+    setStripeApi({ stripe: null, elements: null, paymentElement: null });
     paypalRenderedRef.current = false;
     try {
       const response = await createCheckoutSession({
@@ -59,8 +59,39 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       .then((StripeConstructor) => {
         if (cancelled) return;
         const stripe = StripeConstructor(stripeInfo.publishableKey);
-        const elements = stripe.elements();
-        setStripeApi({ stripe, elements, card: null });
+        let elements;
+        try {
+          elements = stripe.elements({
+            clientSecret: stripeInfo.clientSecret,
+            appearance: {
+              theme: "night",
+              variables: {
+                colorPrimary: "#4f9dff",
+                colorBackground: "rgba(10,12,22,0.85)",
+                colorText: "#e7f2ff",
+                colorDanger: "#ff9090",
+                borderRadius: "14px",
+              },
+              rules: {
+                ".Input": {
+                  color: "#e7f2ff",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  backgroundColor: "transparent",
+                },
+                ".Label": {
+                  color: "rgba(231,242,255,0.8)",
+                  fontWeight: 500,
+                },
+              },
+            },
+          });
+        } catch (err) {
+          console.error("Stripe Elements error", err);
+          setError(err.message || "Stripe is not available at the moment.");
+          return;
+        }
+        if (cancelled) return;
+        setStripeApi({ stripe, elements, paymentElement: null });
       })
       .catch((err) => {
         console.error("Stripe SDK error", err);
@@ -73,47 +104,28 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   }, [stripeInfo?.publishableKey, stripeInfo?.clientSecret]);
 
   useEffect(() => {
-    if (!stripeApi.elements || !cardContainerRef.current) return undefined;
-    const card = stripeApi.elements.create("card", {
-      hidePostalCode: true,
-      style: {
-        base: {
-          color: "#e7f2ff",
-          fontFamily: '"SF Pro Display", -apple-system, BlinkMacSystemFont, sans-serif',
-          fontSize: "16px",
-          "::placeholder": {
-            color: "rgba(231,242,255,0.55)",
-          },
-          iconColor: "#4f9dff",
-        },
-        invalid: {
-          color: "#ff9090",
-          iconColor: "#ff9090",
-        },
-      },
+    if (!stripeApi.elements || !paymentElementRef.current) return undefined;
+    const paymentElement = stripeApi.elements.create("payment", {
+      layout: "tabs",
     });
-    card.mount(cardContainerRef.current);
-    setStripeApi((prev) => ({ ...prev, card }));
+    paymentElement.mount(paymentElementRef.current);
+    setStripeApi((prev) => ({ ...prev, paymentElement }));
 
     return () => {
-      card.destroy();
-      setStripeApi((prev) => ({ ...prev, card: null }));
+      paymentElement.destroy();
+      setStripeApi((prev) => ({ ...prev, paymentElement: null }));
     };
   }, [stripeApi.elements]);
 
   const handleStripePay = async () => {
-    if (!stripeApi.stripe || !stripeApi.card || !stripeInfo?.clientSecret) return;
+    if (!stripeApi.stripe || !stripeApi.elements || !stripeInfo?.clientSecret) return;
     setStripeProcessing(true);
     setError(null);
     try {
-      const { error: stripeError, paymentIntent } = await stripeApi.stripe.confirmCardPayment(
-        stripeInfo.clientSecret,
-        {
-          payment_method: {
-            card: stripeApi.card,
-          },
-        }
-      );
+      const { error: stripeError, paymentIntent } = await stripeApi.stripe.confirmPayment({
+        elements: stripeApi.elements,
+        redirect: "if_required",
+      });
 
       if (stripeError) {
         setError(stripeError.message || "Stripe payment failed");
@@ -136,7 +148,8 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     }
   };
 
-  const showStripe = Boolean(stripeInfo?.clientSecret && stripeApi.stripe);
+  const showStripe = Boolean(stripeInfo?.clientSecret && stripeInfo?.publishableKey);
+  const stripeReady = Boolean(showStripe && stripeApi.paymentElement);
 
   const paypalInfo = session?.paypal;
 
@@ -223,7 +236,6 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
             <div className="payment-provider-card">
               <h4>Card / Apple Pay / Google Pay</h4>
               <div
-                ref={cardContainerRef}
                 style={{
                   padding: "16px",
                   borderRadius: "14px",
@@ -231,11 +243,14 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
                   border: "1px solid rgba(255,255,255,0.1)",
                   marginBottom: "12px",
                 }}
-              />
+              >
+                <div ref={paymentElementRef} style={{ minHeight: "80px" }} />
+                {!stripeReady && <div className="payment-loader">Preparing card methods…</div>}
+              </div>
               <button
                 type="button"
                 className="popup-continue"
-                disabled={stripeProcessing}
+                disabled={stripeProcessing || !stripeReady}
                 onClick={handleStripePay}
               >
                 {stripeProcessing ? "Processing…" : "Pay with card"}

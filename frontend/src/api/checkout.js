@@ -2,7 +2,20 @@ const DEFAULT_HEADERS = {
   "Content-Type": "application/json",
 };
 
-const BASE_URL = import.meta?.env?.VITE_API_BASE_URL || "http://localhost:4000";
+const inferApiBaseUrl = () => {
+  const envBase = import.meta?.env?.VITE_API_BASE_URL;
+  if (envBase) return envBase;
+
+  if (typeof window !== "undefined") {
+    const { origin, hostname } = window.location;
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+    return isLocalhost ? "http://localhost:4000" : origin;
+  }
+
+  return "http://localhost:4000";
+};
+
+const BASE_URL = inferApiBaseUrl();
 
 const jsonFetch = async (path, options = {}) => {
   const response = await fetch(`${BASE_URL}${path}`, {
@@ -22,7 +35,8 @@ const jsonFetch = async (path, options = {}) => {
 export const createCheckoutSession = async ({ area, price, currency = "eur", metadata = {} }) => {
   const amount = Number(price || 0);
   const payload = {
-    amount,
+    area,
+    price: amount,
     currency,
     metadata: {
       ...metadata,
