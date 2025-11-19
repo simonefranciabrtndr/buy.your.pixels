@@ -73,4 +73,7 @@ export const config = {
     clientSecret: process.env.PAYPAL_CLIENT_SECRET || "",
     environment: process.env.PAYPAL_ENV === "live" ? "live" : "sandbox",
   },
+  developer: {
+    password: process.env.DEVELOPER_PASSWORD || "",
+  },
 };

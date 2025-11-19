@@ -7,11 +7,13 @@ import Stripe from "stripe";
 import { config } from "./config.js";
 import { capturePayPalOrder, createPayPalOrder } from "./paypal.js";
 import { touchPresence, getPresenceStats } from "./presenceStore.js";
-import { listPurchases, recordPurchase, sumPurchasedPixels } from "./purchaseStore.js";
+import { listPurchases, recordPurchase, sumPurchasedPixels, updatePurchaseModeration } from "./purchaseStore.js";
 
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: "2024-06-20" }) : null;
 
 const sessions = new Map();
+const developerSessions = new Map();
+const DEVELOPER_SESSION_TTL = 1000 * 60 * 60 * 12; // 12 hours
 
 const buildSelectionSummary = (area) => {
   if (!area) return null;
@@ -19,6 +21,34 @@ const buildSelectionSummary = (area) => {
     pixels: Math.round(area.area || 0),
     tiles: Array.isArray(area.tiles) ? area.tiles.length : 1,
   };
+};
+
+const createDeveloperSession = () => {
+  const token = uuid();
+  developerSessions.set(token, { createdAt: Date.now() });
+  return token;
+};
+
+const verifyDeveloperToken = (token) => {
+  if (!token) return false;
+  const session = developerSessions.get(token);
+  if (!session) return false;
+  const expired = Date.now() - session.createdAt > DEVELOPER_SESSION_TTL;
+  if (expired) {
+    developerSessions.delete(token);
+    return false;
+  }
+  return true;
+};
+
+const requireDeveloperAuth = (req, res, next) => {
+  const header = req.get("authorization") || "";
+  const token = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!verifyDeveloperToken(token)) {
+    return res.status(401).json({ error: "Developer authentication required" });
+  }
+  req.developerToken = token;
+  next();
 };
 
 export const createApp = () => {
@@ -170,6 +200,46 @@ export const createApp = () => {
     }
     touchPresence({ sessionId, isSelecting, selectionPixels });
     res.json({ status: "ok" });
+  });
+
+  app.post("/api/developer/login", (req, res) => {
+    if (!config.developer.password) {
+      return res.status(503).json({ error: "Developer access not configured" });
+    }
+    const { password } = req.body || {};
+    if (!password || password !== config.developer.password) {
+      return res.status(401).json({ error: "Invalid developer credentials" });
+    }
+    const token = createDeveloperSession();
+    res.json({ token, expiresIn: DEVELOPER_SESSION_TTL });
+  });
+
+  app.get("/api/developer/purchases", requireDeveloperAuth, async (_req, res) => {
+    try {
+      const purchases = await listPurchases();
+      res.json({ purchases });
+    } catch (error) {
+      console.error("Developer list purchases failed", error);
+      res.status(500).json({ error: "Unable to load purchases" });
+    }
+  });
+
+  app.patch("/api/developer/purchases/:purchaseId", requireDeveloperAuth, async (req, res) => {
+    const { purchaseId } = req.params;
+    const { nsfw } = req.body || {};
+    if (!purchaseId) {
+      return res.status(400).json({ error: "Missing purchase id" });
+    }
+    if (typeof nsfw !== "boolean") {
+      return res.status(400).json({ error: "nsfw flag must be provided" });
+    }
+    try {
+      const updated = await updatePurchaseModeration(purchaseId, { nsfw });
+      res.json(updated);
+    } catch (error) {
+      console.error("Developer update purchase failed", error);
+      res.status(500).json({ error: "Unable to update purchase" });
+    }
   });
 
   app.get("/api/stats", async (_req, res) => {

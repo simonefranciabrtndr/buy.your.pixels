@@ -120,6 +120,32 @@ export const sumPurchasedPixels = async () => {
   return Number(rows[0]?.total || 0);
 };
 
+export const updatePurchaseModeration = async (id, { nsfw }) => {
+  if (!pool) {
+    throw new Error("Database not initialized");
+  }
+  const updates = [];
+  const values = [id];
+  if (typeof nsfw === "boolean") {
+    updates.push(`nsfw = $${updates.length + 2}`);
+    values.push(nsfw);
+  }
+  if (!updates.length) {
+    throw new Error("No valid moderation fields provided");
+  }
+  const query = `
+    UPDATE purchases
+    SET ${updates.join(", ")}
+    WHERE id = $1
+    RETURNING *;
+  `;
+  const { rows } = await pool.query(query, values);
+  if (!rows.length) {
+    throw new Error("Purchase not found");
+  }
+  return normalizePurchase(rows[0]);
+};
+
 const normalizePurchase = (row) => {
   if (!row) return null;
   return {
