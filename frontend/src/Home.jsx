@@ -243,7 +243,7 @@ export default function Home() {
 
   useEffect(() => {
     const handler = (event) => {
-      if (event.altKey && event.shiftKey && event.key?.toLowerCase() === "d") {
+      if (event.altKey && event.shiftKey && event.code === "KeyD") {
         event.preventDefault();
         setIsDeveloperModalOpen(true);
       }
