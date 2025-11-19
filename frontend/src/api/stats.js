@@ -1,8 +1,10 @@
+import inferApiBaseUrl from "./baseUrl";
+
 const DEFAULT_HEADERS = {
   "Content-Type": "application/json",
 };
 
-const BASE_URL = import.meta?.env?.VITE_API_BASE_URL || "http://localhost:4000";
+const BASE_URL = inferApiBaseUrl();
 
 const handleResponse = async (response) => {
   if (!response.ok) {
@@ -24,4 +26,3 @@ export const sendPresenceHeartbeat = ({ sessionId, isSelecting = false, selectio
     headers: DEFAULT_HEADERS,
     body: JSON.stringify({ sessionId, isSelecting, selectionPixels }),
   }).then(handleResponse);
-
