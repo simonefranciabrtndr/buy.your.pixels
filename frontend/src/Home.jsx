@@ -242,6 +242,17 @@ export default function Home() {
   useEffect(() => () => clearHoverHideTimeout(), [clearHoverHideTimeout]);
 
   useEffect(() => {
+    const handler = (event) => {
+      if (event.altKey && event.shiftKey && event.key?.toLowerCase() === "d") {
+        event.preventDefault();
+        setIsDeveloperModalOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const loadPurchases = async () => {
       try {
@@ -1153,7 +1164,6 @@ export default function Home() {
         documents={legalDocuments}
         stats={legalStats}
         onRequestProfile={openProfileModal}
-        onRequestDeveloper={openDeveloperModal}
         panelId="legalMenuPanel"
       />
       <ProfileManagerModal isOpen={isProfileModalOpen} onClose={closeProfileModal} />

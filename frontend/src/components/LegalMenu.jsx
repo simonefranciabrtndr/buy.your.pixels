@@ -8,7 +8,6 @@ export default function LegalMenu({
   panelId = "legalMenuPanel",
   stats = {},
   onRequestProfile,
-  onRequestDeveloper,
 }) {
   const [activeId, setActiveId] = useState(() => documents[0]?.id ?? null);
   const firstButtonRef = useRef(null);
@@ -84,12 +83,6 @@ export default function LegalMenu({
         value: "Create profile",
         action: "profile",
       },
-      {
-        id: "developerConsole",
-        label: "Developer console",
-        value: "Moderate blocks",
-        action: "developer",
-      },
     ],
     [stats, numberFormatter, currencyFormatter]
   );
@@ -153,17 +146,10 @@ export default function LegalMenu({
           {summaryMetrics.map((metric) => {
             const isAction = Boolean(metric.action);
             const CardTag = isAction ? "button" : "article";
-            const handleAction = () => {
-              if (metric.action === "profile") {
-                onRequestProfile?.();
-              } else if (metric.action === "developer") {
-                onRequestDeveloper?.();
-              }
-            };
             const cardProps = isAction
               ? {
                   type: "button",
-                  onClick: handleAction,
+                  onClick: () => onRequestProfile?.(),
                 }
               : {};
             return (
