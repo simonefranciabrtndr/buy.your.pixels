@@ -205,6 +205,10 @@ export default function Home() {
     [persistProfile]
   );
 
+  const handleLogout = useCallback(() => {
+    syncProfile(null);
+  }, [syncProfile]);
+
   const refreshProfile = useCallback(async () => {
     if (!profile?.token) return;
     try {
@@ -1271,6 +1275,7 @@ export default function Home() {
         token={profile?.token || null}
         onProfileSync={handleProfileSaved}
         onRefreshProfile={refreshProfile}
+        onLogout={handleLogout}
       />
       <DeveloperConsole isOpen={isDeveloperModalOpen} onClose={closeDeveloperModal} />
     </div>

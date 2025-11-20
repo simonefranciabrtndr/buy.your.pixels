@@ -298,3 +298,32 @@
     height: 60px;
   }
 }
+.profile-logout-btn {
+  margin-left: auto;
+  border: none;
+  border-radius: 12px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+}
+
+.profile-auth-toggle {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.profile-auth-toggle button {
+  flex: 1;
+  border: none;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+}
+
+.profile-auth-toggle button.active {
+  background: rgba(255, 255, 255, 0.2);
+}

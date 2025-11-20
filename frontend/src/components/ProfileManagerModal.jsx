@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { registerProfile } from "../api/profile";
+import { registerProfile, loginProfile } from "../api/profile";
 import "./ProfileManagerModal.css";
 
 const readFileAsDataUrl = (file) =>
@@ -17,6 +17,7 @@ export default function ProfileManagerModal({
   purchases = [],
   token,
   onProfileSync,
+  onLogout,
 }) {
   const [form, setForm] = useState({
     email: "",
@@ -28,6 +29,7 @@ export default function ProfileManagerModal({
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
+  const [authMode, setAuthMode] = useState("register");
 
   const hasProfile = Boolean(token && profile);
   const canSubmit = useMemo(() => form.email && form.username && form.password, [form]);
@@ -97,6 +99,120 @@ export default function ProfileManagerModal({
     }
   };
 
+  const handleLogin = async (event) => {
+    event.preventDefault();
+    if (!form.email || !form.password) return;
+    setStatus("submitting");
+    setMessage("");
+    try {
+      const data = await loginProfile({ email: form.email, password: form.password });
+      onProfileSync?.(data);
+      setStatus("success");
+      setMessage("Welcome back!");
+      setTimeout(() => {
+        setStatus("idle");
+        setMessage("");
+        onClose?.();
+      }, 1000);
+    } catch (error) {
+      setStatus("error");
+      setMessage(error.message || "Unable to login right now.");
+    }
+  };
+
+  const renderAuthForm = () => {
+    if (authMode === "login") {
+      return (
+        <form className="profile-form-card" onSubmit={handleLogin}>
+          <label className="profile-field">
+            <span>Email</span>
+            <input
+              type="email"
+              value={form.email}
+              onChange={handleChange("email")}
+              placeholder="you@email.com"
+              required
+            />
+          </label>
+          <label className="profile-field">
+            <span>Password</span>
+            <input
+              type="password"
+              value={form.password}
+              onChange={handleChange("password")}
+              placeholder="••••••••"
+              required
+              minLength={8}
+            />
+          </label>
+          <button type="submit" className="profile-submit-btn" disabled={status === "submitting"}>
+            {status === "submitting" ? "Checking…" : "Login"}
+          </button>
+        </form>
+      );
+    }
+
+    return (
+      <form className="profile-form-card" onSubmit={handleSubmit}>
+        <label className="profile-field">
+          <span>Email</span>
+          <input
+            type="email"
+            value={form.email}
+            onChange={handleChange("email")}
+            placeholder="you@email.com"
+            required
+          />
+        </label>
+        <label className="profile-field">
+          <span>Username</span>
+          <input
+            type="text"
+            value={form.username}
+            onChange={handleChange("username")}
+            placeholder="Creative alias"
+            required
+          />
+        </label>
+        <label className="profile-field">
+          <span>Password</span>
+          <input
+            type="password"
+            value={form.password}
+            onChange={handleChange("password")}
+            placeholder="••••••••"
+            required
+            minLength={8}
+          />
+        </label>
+        <label className="profile-field profile-avatar-upload">
+          <span>Profile image</span>
+          <div className="profile-avatar-row">
+            <div className="profile-avatar-thumb">
+              {avatarPreview ? <img src={avatarPreview} alt="Preview" /> : <span>Preview</span>}
+            </div>
+            <input type="file" accept="image/*" onChange={handleAvatarChange} />
+          </div>
+          <small>Square images work best. Max 2MB.</small>
+        </label>
+        <label className="profile-field profile-newsletter-toggle">
+          <span>Newsletter</span>
+          <div className="profile-toggle-row">
+            <input
+              type="checkbox"
+              checked={form.subscribeNewsletter}
+              onChange={(event) => setForm((prev) => ({ ...prev, subscribeNewsletter: event.target.checked }))}
+            />
+            <p>Opt-in for monthly progress updates and artist spotlights.</p>
+          </div>
+        </label>
+        <button type="submit" className="profile-submit-btn" disabled={!canSubmit || status === "submitting"}>
+          {status === "submitting" ? "Saving…" : "Create profile"}
+        </button>
+      </form>
+    );
+  };
+
   return (
     <div className="profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
       <div className="profile-modal">
@@ -116,65 +232,24 @@ export default function ProfileManagerModal({
 
           {!hasProfile && (
             <>
-              <form className="profile-form-card" onSubmit={handleSubmit}>
-                <label className="profile-field">
-                  <span>Email</span>
-                  <input
-                    type="email"
-                    value={form.email}
-                    onChange={handleChange("email")}
-                    placeholder="you@email.com"
-                    required
-                  />
-                </label>
-                <label className="profile-field">
-                  <span>Username</span>
-                  <input
-                    type="text"
-                    value={form.username}
-                    onChange={handleChange("username")}
-                    placeholder="Creative alias"
-                    required
-                  />
-                </label>
-                <label className="profile-field">
-                  <span>Password</span>
-                  <input
-                    type="password"
-                    value={form.password}
-                    onChange={handleChange("password")}
-                    placeholder="••••••••"
-                    required
-                    minLength={8}
-                  />
-                </label>
-                <label className="profile-field profile-avatar-upload">
-                  <span>Profile image</span>
-                  <div className="profile-avatar-row">
-                    <div className="profile-avatar-thumb">
-                      {avatarPreview ? <img src={avatarPreview} alt="Preview" /> : <span>Preview</span>}
-                    </div>
-                    <input type="file" accept="image/*" onChange={handleAvatarChange} />
-                  </div>
-                  <small>Square images work best. Max 2MB.</small>
-                </label>
-                <label className="profile-field profile-newsletter-toggle">
-                  <span>Newsletter</span>
-                  <div className="profile-toggle-row">
-                    <input
-                      type="checkbox"
-                      checked={form.subscribeNewsletter}
-                      onChange={(event) =>
-                        setForm((prev) => ({ ...prev, subscribeNewsletter: event.target.checked }))
-                      }
-                    />
-                    <p>Opt-in for monthly progress updates and artist spotlights.</p>
-                  </div>
-                </label>
-                <button type="submit" className="profile-submit-btn" disabled={!canSubmit || status === "submitting"}>
-                  {status === "submitting" ? "Saving…" : "Create profile"}
+              <div className="profile-auth-toggle">
+                <button
+                  type="button"
+                  className={authMode === "register" ? "active" : ""}
+                  onClick={() => setAuthMode("register")}
+                >
+                  Create account
                 </button>
-              </form>
+                <button
+                  type="button"
+                  className={authMode === "login" ? "active" : ""}
+                  onClick={() => setAuthMode("login")}
+                >
+                  I already have an account
+                </button>
+              </div>
+
+              {renderAuthForm()}
 
               <section className="profile-info-card">
                 <h4>What can you edit later?</h4>
@@ -204,6 +279,9 @@ export default function ProfileManagerModal({
                   <strong>{profile.username}</strong>
                   <p>{profile.email}</p>
                 </div>
+                <button type="button" className="profile-logout-btn" onClick={onLogout}>
+                  Logout
+                </button>
               </div>
               <div className="profile-metrics">
                 <div className="profile-metric-card">
