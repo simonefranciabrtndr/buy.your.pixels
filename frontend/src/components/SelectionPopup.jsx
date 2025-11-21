@@ -271,6 +271,18 @@ export default function SelectionPopup({
     resetFlowState();
   }, [area, resetFlowState]);
 
+  useEffect(() => {
+    setStep(isEditMode ? "upload" : "summary");
+  }, [isEditMode, bounds?.x, bounds?.y]);
+
+  useEffect(() => {
+    if (!isEditMode) return;
+    setUploadedImage(initialValues.uploadedImage || null);
+    setLink(initialValues.link || "");
+    setIsNsfw(Boolean(initialValues.isNsfw));
+    setImageTransform(initialValues.imageTransform || DEFAULT_TRANSFORM);
+  }, [isEditMode, initialValues]);
+
   const handleClose = useCallback(() => {
     resetFlowState();
     onClose();
@@ -857,18 +869,7 @@ export default function SelectionPopup({
         </div>
       </>
     );
-  }
+}
 
   return null;
 }
-  useEffect(() => {
-    setStep(isEditMode ? "upload" : "summary");
-  }, [isEditMode, bounds?.x, bounds?.y]);
-
-  useEffect(() => {
-    if (!isEditMode) return;
-    setUploadedImage(initialValues.uploadedImage || null);
-    setLink(initialValues.link || "");
-    setIsNsfw(Boolean(initialValues.isNsfw));
-    setImageTransform(initialValues.imageTransform || DEFAULT_TRANSFORM);
-  }, [isEditMode, initialValues]);
