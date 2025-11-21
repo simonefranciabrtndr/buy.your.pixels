@@ -775,6 +775,7 @@ export default function Home() {
       resetAnimationState();
 
       try {
+        const saved = await createPurchase(
           {
             id: areaId,
             rect: baseArea.rect,
@@ -789,20 +790,23 @@ export default function Home() {
           },
           profile?.token
         );
+
         setPurchasedAreas((prev) =>
           prev.map((area) =>
             area.id === areaId
               ? {
                   ...area,
                   ...saved,
-                  previewData: saved.previewData || area.previewData || null,
+                  previewData: saved?.previewData || area.previewData || null,
                 }
               : area
           )
         );
+
         if (saved?.link && saved?.previewData) {
           linkPreviewCacheRef.current.set(saved.link, saved.previewData);
         }
+
         if (profile?.token) {
           syncProfile({
             token: profile.token,
