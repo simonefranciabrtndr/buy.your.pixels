@@ -9,6 +9,8 @@ import CanvasOverlay from "./CanvasOverlay";
 import PaymentStep from "./payment/PaymentStep";
 import "./SelectionPopup.css";
 
+let isEditMode = false;
+
 const formatLinkHostname = (url) => {
   if (!url) return "";
   try {
