@@ -36,6 +36,17 @@
   gap: 24px;
   margin-bottom: 20px;
 }
+.legal-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.legal-price-chip {
+  font-size: 0.875rem;
+  color: #60a5fa;
+  opacity: 0.8;
+}
 
 .legal-menu-kicker {
   font-size: 12px;

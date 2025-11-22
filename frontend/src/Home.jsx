@@ -1270,6 +1270,7 @@ try {
         stats={legalStats}
         onRequestProfile={openProfileModal}
         panelId="legalMenuPanel"
+        pricePerPixel={PRICE_PER_PIXEL}
       />
       <ProfileManagerModal
         isOpen={isProfileModalOpen}

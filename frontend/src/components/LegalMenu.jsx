@@ -8,6 +8,7 @@ export default function LegalMenu({
   panelId = "legalMenuPanel",
   stats = {},
   onRequestProfile,
+  pricePerPixel = 0,
 }) {
   const [activeId, setActiveId] = useState(() => documents[0]?.id ?? null);
   const firstButtonRef = useRef(null);
@@ -39,6 +40,7 @@ export default function LegalMenu({
     const safeNumber = Number.isFinite(value) ? value : 0;
     return currencyFormatter.format(Math.max(0, safeNumber));
   };
+  const pricePerPixelDisplay = currencyFormatter.format(Math.max(0, Number(pricePerPixel) || 0));
 
   const summaryMetrics = useMemo(
     () => [
@@ -145,14 +147,19 @@ export default function LegalMenu({
               Access all terms, privacy and policy details in one place.
             </p>
           </div>
-          <button
-            type="button"
-            className="legal-close-btn"
-            onClick={onClose}
-            aria-label="Close legal documents"
-          >
-            <span aria-hidden="true">×</span>
-          </button>
+          <div className="legal-header-actions">
+            <span className="legal-price-chip text-blue-400 text-sm opacity-80">
+              Price per pixel = {pricePerPixelDisplay}
+            </span>
+            <button
+              type="button"
+              className="legal-close-btn"
+              onClick={onClose}
+              aria-label="Close legal documents"
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
         </header>
 
         <div className="legal-stats-grid">
