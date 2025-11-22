@@ -22,10 +22,10 @@ export function CurrencyProvider({ children }) {
     return () => clearInterval(timer);
   }, []);
 
-  function convertCurrency(amountEUR, targetCurrency = currency, sourceRates = rates) {
-    const numeric = Number(amountEUR) || 0;
-    const rateTable = sourceRates || rates;
-    const rate = rateTable?.[targetCurrency] ?? 1;
+  function convertCurrency(eurValue, targetCurrency = currency, rateTable = rates) {
+    const numeric = Number(eurValue) || 0;
+    const safeRates = rateTable || rates;
+    const rate = safeRates?.[targetCurrency] ?? 1;
     return numeric * rate;
   }
 

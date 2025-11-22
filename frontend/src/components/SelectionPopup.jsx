@@ -797,7 +797,7 @@ export default function SelectionPopup({
             <p className="final-text">You can edit your banner or proceed to payment.</p>
             <p className="final-price">
               {displayPrice}
-              <span className="final-price-note">Charged in {displayPriceEUR}</span>
+              <span className="final-price-note">You will be charged {displayPriceEUR}</span>
             </p>
             {trimmedLink && (
               <div className="popup-link-preview">

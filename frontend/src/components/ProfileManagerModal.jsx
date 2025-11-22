@@ -40,11 +40,11 @@ export default function ProfileManagerModal({
     () => purchases.reduce((sum, item) => sum + Math.max(0, Math.round(item.area || 0)), 0),
     [purchases]
   );
-  const donatedEuros = useMemo(
-    () => purchases.reduce((sum, item) => sum + Number(item.price || 0), 0) * 0.005,
-    [purchases]
-  );
-  const donatedDisplay = formatCurrency(convertCurrency(donatedEuros, activeCurrency, rates), activeCurrency);
+  const donatedDisplay = useMemo(() => {
+    const donatedEuros = purchases.reduce((sum, item) => sum + Number(item.price || 0), 0) * 0.005;
+    const converted = convertCurrency(donatedEuros, activeCurrency, rates);
+    return formatCurrency(converted, activeCurrency);
+  }, [purchases, activeCurrency, rates, convertCurrency, formatCurrency]);
 
   useEffect(() => {
     if (isOpen && profile) {

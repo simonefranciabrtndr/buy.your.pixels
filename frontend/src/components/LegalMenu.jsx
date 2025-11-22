@@ -36,8 +36,11 @@ export default function LegalMenu({
   };
   const pricePerPixelDisplay = formatMoneyDisplay(Number(pricePerPixel) || 0);
 
-  const summaryMetrics = useMemo(
-    () => [
+  const summaryMetrics = useMemo(() => {
+    const charityDisplay = formatMoneyDisplay(stats.donationEuros);
+    const profileDonationDisplay = formatMoneyDisplay(stats.profileDonation || 0);
+
+    return [
       {
         id: "totalPixels",
         label: "Total number of pixels",
@@ -71,7 +74,7 @@ export default function LegalMenu({
       {
         id: "charityDonations",
         label: "Donated to charity (0.5%)",
-        value: formatMoneyDisplay(stats.donationEuros),
+        value: charityDisplay,
       },
       {
         id: "profileManager",
@@ -86,7 +89,7 @@ export default function LegalMenu({
                 <p className="legal-profile-pixels-value text-white">{formatValue(stats.profilePixels, " px")}</p>
                 <span className="legal-profile-pixels-label text-white">Donated (0.5%)</span>
                 <p className="legal-profile-pixels-value text-white">
-                  {formatMoneyDisplay(stats.profileDonation || 0)}
+                  {profileDonationDisplay}
                 </p>
               </div>
             </div>
@@ -94,9 +97,8 @@ export default function LegalMenu({
             <p className="legal-stat-value">Create profile</p>
           ),
       },
-    ],
-    [stats, numberFormatter, formatCurrency, convertCurrency, activeCurrency, rates]
-  );
+    ];
+  }, [stats, numberFormatter, formatCurrency, convertCurrency, activeCurrency, rates]);
 
   useEffect(() => {
     if (!isOpen || !documents.length) return;

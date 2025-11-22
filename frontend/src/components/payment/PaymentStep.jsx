@@ -15,6 +15,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const totalPriceEUR = Number(price || 0);
   const convertedTotal = convertCurrency(totalPriceEUR, activeCurrency, rates);
   const displayTotal = formatCurrency(convertedTotal, activeCurrency);
+  const displayChargeCurrency = formatCurrency(totalPriceEUR, "EUR");
 
   const [stripeApi, setStripeApi] = useState({ stripe: null, elements: null, paymentElement: null });
   const [stripeProcessing, setStripeProcessing] = useState(false);
@@ -237,7 +238,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
               <span>
                 {displayTotal}
                 <small style={{ display: "block", fontSize: "11px", opacity: 0.7 }}>
-                  Charged in {formatCurrency(totalPriceEUR, "EUR")}
+                  You will be charged {displayChargeCurrency}
                 </small>
               </span>
             </div>
