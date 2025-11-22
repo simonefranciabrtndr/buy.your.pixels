@@ -10,8 +10,22 @@ const CurrencyContext = createContext();
 const SUPPORTED = ["EUR", "USD", "GBP"];
 
 export function CurrencyProvider({ children }) {
-  const [currency, setCurrency] = useState("EUR");
+  const STORAGE_KEY = "currency";
+  const getInitialCurrency = () => {
+    if (typeof window === "undefined") return "EUR";
+    return window.localStorage.getItem(STORAGE_KEY) || "EUR";
+  };
+
+  const [currencyState, setCurrencyState] = useState(getInitialCurrency);
   const [rates] = useState(FIXED_RATES);
+  const currency = currencyState;
+
+  const setCurrency = (nextCurrency) => {
+    setCurrencyState(nextCurrency);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(STORAGE_KEY, nextCurrency);
+    }
+  };
 
   function convertCurrency(eurValue, targetCurrency = currency, rateTable = rates) {
     const numeric = Number(eurValue) || 0;

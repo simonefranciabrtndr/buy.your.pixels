@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrency } from "../context/CurrencyContext";
+import HamburgerMenu from "./HamburgerMenu";
 import "./LegalMenu.css";
 
 export default function LegalMenu({
@@ -13,7 +14,7 @@ export default function LegalMenu({
 }) {
   const [activeId, setActiveId] = useState(() => documents[0]?.id ?? null);
   const firstButtonRef = useRef(null);
-  const { selectedCurrency, currency, setCurrency, SUPPORTED, rates, convertCurrency, formatCurrency } = useCurrency();
+  const { selectedCurrency, currency, rates, convertCurrency, formatCurrency } = useCurrency();
   const activeCurrency = selectedCurrency || currency || "EUR";
 
   const activeDoc = useMemo(() => {
@@ -158,20 +159,7 @@ export default function LegalMenu({
           </p>
         </header>
 
-        <div className="legal-card glassy">
-          <h3 className="legal-card-title">Currency</h3>
-          <select
-            value={activeCurrency}
-            onChange={(e) => setCurrency(e.target.value)}
-            className="legal-currency-toggle"
-          >
-            {SUPPORTED.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </div>
+        <HamburgerMenu />
 
         <div className="legal-stats-grid">
           {summaryMetrics.map((metric) => {
