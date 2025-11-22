@@ -38,9 +38,8 @@
 }
 .legal-header-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
 }
 .legal-price-chip {
   font-size: 0.875rem;
