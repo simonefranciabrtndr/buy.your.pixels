@@ -30,21 +30,25 @@
 }
 
 .legal-menu-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
   margin-bottom: 20px;
 }
-.legal-header-actions {
+.legal-topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  width: 100%;
+  padding-right: 8px;
+}
+.legal-title-block {
+  flex: 1;
 }
 .legal-price-chip {
   font-size: 0.875rem;
   color: #60a5fa;
   opacity: 0.8;
+  align-self: flex-start;
+  margin-left: auto;
+  margin-right: 12px;
 }
 
 .legal-menu-kicker {

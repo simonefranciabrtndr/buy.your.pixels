@@ -140,14 +140,14 @@ export default function LegalMenu({
     <div className="legal-menu-overlay" role="dialog" aria-modal="true" aria-labelledby="legalMenuTitle">
       <div className="legal-menu-panel glassy" id={panelId}>
         <header className="legal-menu-header">
-          <div>
-            <p className="legal-menu-kicker">Legal Documentation</p>
-            <h2 id="legalMenuTitle">{activeDoc?.title ?? "Documents"}</h2>
-            <p className="legal-menu-subtitle">
-              Access all terms, privacy and policy details in one place.
-            </p>
-          </div>
-          <div className="legal-header-actions">
+          <div className="legal-topbar">
+            <div className="legal-title-block">
+              <p className="legal-menu-kicker">Legal Documentation</p>
+              <h2 id="legalMenuTitle">{activeDoc?.title ?? "Documents"}</h2>
+              <p className="legal-menu-subtitle">
+                Access all terms, privacy and policy details in one place.
+              </p>
+            </div>
             <span className="legal-price-chip text-blue-400 text-sm opacity-80">
               Price per pixel = {pricePerPixelDisplay}
             </span>
