@@ -89,10 +89,10 @@ export default function SelectionPopup({
   const boundingWidth = bounds ? Math.round(bounds.w) : 0;
   const boundingHeight = bounds ? Math.round(bounds.h) : 0;
   const formattedPixels = Math.round(totalAreaPixels).toLocaleString();
-  const priceValueEUR = Number(price || 0);
-  const convertedPrice = convertCurrency(priceValueEUR, activeCurrency, rates);
+  const totalPriceEUR = Number(price || 0);
+  const convertedPrice = convertCurrency(totalPriceEUR, activeCurrency, rates);
   const displayPrice = formatCurrency(convertedPrice, activeCurrency);
-  const displayPriceEUR = formatCurrency(priceValueEUR, "EUR");
+  const displayPriceEUR = formatCurrency(totalPriceEUR, "EUR");
 
   /**
    * Determine a placement for the popup that keeps it off the selected region
@@ -871,7 +871,7 @@ export default function SelectionPopup({
           <div className="popup-body">
               <PaymentStep
                 area={area}
-                price={priceValueEUR}
+                price={totalPriceEUR}
               onBack={() => setStep("final")}
               onCancel={handleClose}
               onSuccess={handlePaymentSuccess}

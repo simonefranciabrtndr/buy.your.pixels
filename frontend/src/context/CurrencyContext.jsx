@@ -1,31 +1,21 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState } from "react";
+
+export const FIXED_RATES = {
+  EUR: 1,
+  USD: 1.08,
+  GBP: 0.86,
+};
 
 const CurrencyContext = createContext();
 const SUPPORTED = ["EUR", "USD", "GBP"];
 
 export function CurrencyProvider({ children }) {
   const [currency, setCurrency] = useState("EUR");
-  const [rates, setRates] = useState({ EUR: 1 });
-
-  useEffect(() => {
-    async function fetchRates() {
-      try {
-        const res = await fetch("https://api.exchangerate.host/latest?base=EUR");
-        const data = await res.json();
-        if (data && data.rates) setRates(data.rates);
-      } catch (err) {
-        console.error("Currency fetch failed:", err);
-      }
-    }
-    fetchRates();
-    const timer = setInterval(fetchRates, 3600000);
-    return () => clearInterval(timer);
-  }, []);
+  const [rates] = useState(FIXED_RATES);
 
   function convertCurrency(eurValue, targetCurrency = currency, rateTable = rates) {
     const numeric = Number(eurValue) || 0;
-    const safeRates = rateTable || rates;
-    const rate = safeRates?.[targetCurrency] ?? 1;
+    const rate = rateTable?.[targetCurrency] ?? 1;
     return numeric * rate;
   }
 
