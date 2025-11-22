@@ -154,12 +154,10 @@ export default function LegalMenu({
               <span aria-hidden="true">×</span>
             </button>
           </div>
-          <div className="legal-title-block">
-            <h2 id="legalMenuTitle">{activeDoc?.title ?? "Documents"}</h2>
-            <p className="legal-menu-subtitle">
-              Access all terms, privacy and policy details in one place.
-            </p>
-          </div>
+          <h2 id="legalMenuTitle">{activeDoc?.title ?? "Documents"}</h2>
+          <p className="legal-menu-subtitle">
+            Access all terms, privacy and policy details in one place.
+          </p>
         </header>
 
         <div className="legal-stats-grid">

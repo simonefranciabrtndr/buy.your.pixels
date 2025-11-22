@@ -39,14 +39,10 @@
   width: 100%;
   padding-right: 8px;
 }
-.legal-title-block {
-  flex: 1;
-}
 .legal-price-chip {
   font-size: 0.875rem;
   color: #60a5fa;
   opacity: 0.8;
-  align-self: flex-start;
   margin-left: auto;
   margin-right: 12px;
 }
