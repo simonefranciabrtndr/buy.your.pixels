@@ -8,6 +8,7 @@ import React, {
 import CanvasOverlay from "./CanvasOverlay";
 import PaymentStep from "./payment/PaymentStep";
 import "./SelectionPopup.css";
+import { useCurrencyFormatter } from "../utils/formatters";
 
 let isEditMode = false;
 
@@ -54,6 +55,7 @@ export default function SelectionPopup({
   onFinalizeEdit,
 }) {
   const isEditMode = mode === "edit";
+  const { formatCurrency } = useCurrencyFormatter();
   // step machine: summary → upload → link → final → editing
   const [step, setStep] = useState(isEditMode ? "upload" : "summary");
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -86,6 +88,7 @@ export default function SelectionPopup({
   const boundingWidth = bounds ? Math.round(bounds.w) : 0;
   const boundingHeight = bounds ? Math.round(bounds.h) : 0;
   const formattedPixels = Math.round(totalAreaPixels).toLocaleString();
+  const priceValueEUR = Number(price || 0);
 
   /**
    * Determine a placement for the popup that keeps it off the selected region
@@ -538,7 +541,7 @@ export default function SelectionPopup({
           <div className="popup-area">
             Available pixels: {formattedPixels}
           </div>
-          <div className="popup-price">€{price}</div>
+          <div className="popup-price">{formatCurrency(priceValueEUR)}</div>
           <button className="popup-buy" onClick={() => setStep("upload")}>Buy</button>
         </div>
       </div>
@@ -788,6 +791,10 @@ export default function SelectionPopup({
             <h3>Finalize your banner</h3>
             {isBottomPlacement && finalButtons}
             <p className="final-text">You can edit your banner or proceed to payment.</p>
+            <p className="final-price">
+              {formatCurrency(priceValueEUR)}
+              <span className="final-price-note">(charged in EUR)</span>
+            </p>
             {trimmedLink && (
               <div className="popup-link-preview">
                 {linkPreviewStatus === "loading" && (
@@ -858,9 +865,9 @@ export default function SelectionPopup({
         <div className={popupClassName} ref={popupRef} style={popupStyle}>
           <button className="close-btn" onClick={handleClose}>×</button>
           <div className="popup-body">
-            <PaymentStep
-              area={area}
-              price={price}
+              <PaymentStep
+                area={area}
+                price={priceValueEUR}
               onBack={() => setStep("final")}
               onCancel={handleClose}
               onSuccess={handlePaymentSuccess}

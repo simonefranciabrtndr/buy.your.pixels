@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useCurrency } from "../context/CurrencyContext";
+import { useCurrencyFormatter } from "../utils/formatters";
 import "./LegalMenu.css";
 
 export default function LegalMenu({
@@ -12,6 +14,8 @@ export default function LegalMenu({
 }) {
   const [activeId, setActiveId] = useState(() => documents[0]?.id ?? null);
   const firstButtonRef = useRef(null);
+  const { currency, setCurrency, SUPPORTED } = useCurrency();
+  const { formatCurrency } = useCurrencyFormatter();
 
   const activeDoc = useMemo(() => {
     if (!documents.length) return null;
@@ -19,16 +23,6 @@ export default function LegalMenu({
   }, [activeId, documents]);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat("en-US"), []);
-  const currencyFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "EUR",
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }),
-    []
-  );
 
   const formatValue = (value, suffix = "") => {
     const numeric = Math.max(0, Math.round(value || 0));
@@ -36,11 +30,7 @@ export default function LegalMenu({
     return suffix ? `${formatted}${suffix}` : formatted;
   };
 
-  const formatCurrency = (value = 0) => {
-    const safeNumber = Number.isFinite(value) ? value : 0;
-    return currencyFormatter.format(Math.max(0, safeNumber));
-  };
-  const pricePerPixelDisplay = currencyFormatter.format(Math.max(0, Number(pricePerPixel) || 0));
+  const pricePerPixelDisplay = formatCurrency(Math.max(0, Number(pricePerPixel) || 0));
 
   const summaryMetrics = useMemo(
     () => [
@@ -77,7 +67,7 @@ export default function LegalMenu({
       {
         id: "charityDonations",
         label: "Donated to charity (0.5%)",
-        value: formatCurrency(stats.donationEuros),
+        value: formatCurrency(Math.max(0, Number(stats.donationEuros) || 0)),
       },
       {
         id: "profileManager",
@@ -91,7 +81,9 @@ export default function LegalMenu({
                 <span className="legal-profile-pixels-label text-white">Pixels owned</span>
                 <p className="legal-profile-pixels-value text-white">{formatValue(stats.profilePixels, " px")}</p>
                 <span className="legal-profile-pixels-label text-white">Donated (0.5%)</span>
-                <p className="legal-profile-pixels-value text-white">{formatCurrency(stats.profileDonation || 0)}</p>
+                <p className="legal-profile-pixels-value text-white">
+                  {formatCurrency(Math.max(0, Number(stats.profileDonation) || 0))}
+                </p>
               </div>
             </div>
           ) : (
@@ -99,7 +91,7 @@ export default function LegalMenu({
           ),
       },
     ],
-    [stats, numberFormatter, currencyFormatter]
+    [stats, numberFormatter, formatCurrency]
   );
 
   useEffect(() => {
@@ -159,6 +151,21 @@ export default function LegalMenu({
             Access all terms, privacy and policy details in one place.
           </p>
         </header>
+
+        <div className="legal-card glassy">
+          <h3 className="legal-card-title">Currency</h3>
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            className="legal-currency-toggle"
+          >
+            {SUPPORTED.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
 
         <div className="legal-stats-grid">
           {summaryMetrics.map((metric) => {

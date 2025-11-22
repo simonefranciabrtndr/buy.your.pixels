@@ -4,5 +4,10 @@ console.log("Stripe key =", import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 import { createRoot } from "react-dom/client";
 import Home from "./Home.jsx";
 import "./styles/global.css";
+import { CurrencyProvider } from "./context/CurrencyContext";
 
-createRoot(document.getElementById("root")).render(<Home />);
+createRoot(document.getElementById("root")).render(
+  <CurrencyProvider>
+    <Home />
+  </CurrencyProvider>
+);
