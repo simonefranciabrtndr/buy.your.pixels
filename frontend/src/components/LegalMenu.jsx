@@ -86,10 +86,10 @@ export default function LegalMenu({
             <div className="legal-profile-value">
               <img src={stats.profileAvatar} alt="Profile avatar" className="legal-profile-thumb" />
               <div>
-                <span className="legal-profile-pixels-label">Pixels owned</span>
-                <p className="legal-profile-pixels-value">{formatValue(stats.profilePixels, " px")}</p>
-                <span className="legal-profile-pixels-label">Donated (0.5%)</span>
-                <p className="legal-profile-pixels-value">{formatCurrency(stats.profileDonation || 0)}</p>
+                <span className="legal-profile-pixels-label text-white">Pixels owned</span>
+                <p className="legal-profile-pixels-value text-white">{formatValue(stats.profilePixels, " px")}</p>
+                <span className="legal-profile-pixels-label text-white">Donated (0.5%)</span>
+                <p className="legal-profile-pixels-value text-white">{formatCurrency(stats.profileDonation || 0)}</p>
               </div>
             </div>
           ) : (
