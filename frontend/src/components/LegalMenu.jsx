@@ -141,13 +141,7 @@ export default function LegalMenu({
       <div className="legal-menu-panel glassy" id={panelId}>
         <header className="legal-menu-header">
           <div className="legal-topbar">
-            <div className="legal-title-block">
-              <p className="legal-menu-kicker">Legal Documentation</p>
-              <h2 id="legalMenuTitle">{activeDoc?.title ?? "Documents"}</h2>
-              <p className="legal-menu-subtitle">
-                Access all terms, privacy and policy details in one place.
-              </p>
-            </div>
+            <p className="legal-menu-kicker">Legal Documentation</p>
             <span className="legal-price-chip text-blue-400 text-sm opacity-80">
               Price per pixel = {pricePerPixelDisplay}
             </span>
@@ -159,6 +153,12 @@ export default function LegalMenu({
             >
               <span aria-hidden="true">×</span>
             </button>
+          </div>
+          <div className="legal-title-block">
+            <h2 id="legalMenuTitle">{activeDoc?.title ?? "Documents"}</h2>
+            <p className="legal-menu-subtitle">
+              Access all terms, privacy and policy details in one place.
+            </p>
           </div>
         </header>
 
