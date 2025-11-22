@@ -285,12 +285,12 @@ export default function ProfileManagerModal({
               </div>
               <div className="profile-metrics">
                 <div className="profile-metric-card">
-                  <span>Pixels owned</span>
-                  <strong>{ownedPixels.toLocaleString()} px</strong>
+                  <span className="text-white">Pixels owned</span>
+                  <strong className="text-white">{ownedPixels.toLocaleString()} px</strong>
                 </div>
                 <div className="profile-metric-card">
-                  <span>Donated thanks to you (0.5%)</span>
-                  <strong>€{donatedEuros.toFixed(2)}</strong>
+                  <span className="text-white">Donated thanks to you (0.5%)</span>
+                  <strong className="text-white">€{donatedEuros.toFixed(2)}</strong>
                 </div>
               </div>
               {!purchases.length && (
