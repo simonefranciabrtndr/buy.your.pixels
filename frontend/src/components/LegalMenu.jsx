@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useCurrency } from "../context/CurrencyContext";
-import { useCurrencyFormatter } from "../utils/formatters";
 import "./LegalMenu.css";
 
 export default function LegalMenu({
@@ -14,8 +13,8 @@ export default function LegalMenu({
 }) {
   const [activeId, setActiveId] = useState(() => documents[0]?.id ?? null);
   const firstButtonRef = useRef(null);
-  const { currency, setCurrency, SUPPORTED } = useCurrency();
-  const { formatCurrency } = useCurrencyFormatter();
+  const { selectedCurrency, currency, setCurrency, SUPPORTED, rates, convertCurrency, formatCurrency } = useCurrency();
+  const activeCurrency = selectedCurrency || currency || "EUR";
 
   const activeDoc = useMemo(() => {
     if (!documents.length) return null;
@@ -30,7 +29,12 @@ export default function LegalMenu({
     return suffix ? `${formatted}${suffix}` : formatted;
   };
 
-  const pricePerPixelDisplay = formatCurrency(Math.max(0, Number(pricePerPixel) || 0));
+  const formatMoneyDisplay = (valueEUR) => {
+    const safeNumber = Math.max(0, Number(valueEUR) || 0);
+    const converted = convertCurrency(safeNumber, activeCurrency, rates);
+    return formatCurrency(converted, activeCurrency);
+  };
+  const pricePerPixelDisplay = formatMoneyDisplay(Number(pricePerPixel) || 0);
 
   const summaryMetrics = useMemo(
     () => [
@@ -67,7 +71,7 @@ export default function LegalMenu({
       {
         id: "charityDonations",
         label: "Donated to charity (0.5%)",
-        value: formatCurrency(Math.max(0, Number(stats.donationEuros) || 0)),
+        value: formatMoneyDisplay(stats.donationEuros),
       },
       {
         id: "profileManager",
@@ -82,7 +86,7 @@ export default function LegalMenu({
                 <p className="legal-profile-pixels-value text-white">{formatValue(stats.profilePixels, " px")}</p>
                 <span className="legal-profile-pixels-label text-white">Donated (0.5%)</span>
                 <p className="legal-profile-pixels-value text-white">
-                  {formatCurrency(Math.max(0, Number(stats.profileDonation) || 0))}
+                  {formatMoneyDisplay(stats.profileDonation || 0)}
                 </p>
               </div>
             </div>
@@ -91,7 +95,7 @@ export default function LegalMenu({
           ),
       },
     ],
-    [stats, numberFormatter, formatCurrency]
+    [stats, numberFormatter, formatCurrency, convertCurrency, activeCurrency, rates]
   );
 
   useEffect(() => {
@@ -155,7 +159,7 @@ export default function LegalMenu({
         <div className="legal-card glassy">
           <h3 className="legal-card-title">Currency</h3>
           <select
-            value={currency}
+            value={activeCurrency}
             onChange={(e) => setCurrency(e.target.value)}
             className="legal-currency-toggle"
           >

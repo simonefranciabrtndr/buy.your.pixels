@@ -22,13 +22,33 @@ export function CurrencyProvider({ children }) {
     return () => clearInterval(timer);
   }, []);
 
-  function convert(amountEUR, to = currency) {
-    if (!rates[to]) return amountEUR;
-    return amountEUR * rates[to];
+  function convertCurrency(amountEUR, targetCurrency = currency, sourceRates = rates) {
+    const numeric = Number(amountEUR) || 0;
+    const rateTable = sourceRates || rates;
+    const rate = rateTable?.[targetCurrency] ?? 1;
+    return numeric * rate;
+  }
+
+  function formatCurrency(value, targetCurrency = currency) {
+    const numeric = Number.isFinite(Number(value)) ? Number(value) : 0;
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: targetCurrency,
+    }).format(numeric);
   }
 
   return (
-    <CurrencyContext.Provider value={{ currency, setCurrency, convert, SUPPORTED }}>
+    <CurrencyContext.Provider
+      value={{
+        currency,
+        selectedCurrency: currency,
+        setCurrency,
+        rates,
+        convertCurrency,
+        formatCurrency,
+        SUPPORTED,
+      }}
+    >
       {children}
     </CurrencyContext.Provider>
   );

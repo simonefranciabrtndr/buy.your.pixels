@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { registerProfile, loginProfile } from "../api/profile";
 import "./ProfileManagerModal.css";
-import { useCurrencyFormatter } from "../utils/formatters";
+import { useCurrency } from "../context/CurrencyContext";
 
 const readFileAsDataUrl = (file) =>
   new Promise((resolve, reject) => {
@@ -20,7 +20,8 @@ export default function ProfileManagerModal({
   onProfileSync,
   onLogout,
 }) {
-  const { formatCurrency } = useCurrencyFormatter();
+  const { selectedCurrency, currency, rates, convertCurrency, formatCurrency } = useCurrency();
+  const activeCurrency = selectedCurrency || currency || "EUR";
   const [form, setForm] = useState({
     email: "",
     username: "",
@@ -43,6 +44,7 @@ export default function ProfileManagerModal({
     () => purchases.reduce((sum, item) => sum + Number(item.price || 0), 0) * 0.005,
     [purchases]
   );
+  const donatedDisplay = formatCurrency(convertCurrency(donatedEuros, activeCurrency, rates), activeCurrency);
 
   useEffect(() => {
     if (isOpen && profile) {
@@ -292,7 +294,7 @@ export default function ProfileManagerModal({
                 </div>
                 <div className="profile-metric-card">
                   <span className="text-white">Donated thanks to you (0.5%)</span>
-                  <strong className="text-white">{formatCurrency(donatedEuros)}</strong>
+                  <strong className="text-white">{donatedDisplay}</strong>
                 </div>
               </div>
               {!purchases.length && (

@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from "react"
 import { createCheckoutSession, capturePayPalOrder, acknowledgePayment } from "../../api/checkout";
 import { loadStripeJs } from "./stripeLoader";
 import { loadPayPalSdk } from "./paypalLoader";
-import { useCurrencyFormatter } from "../../utils/formatters";
+import { useCurrency } from "../../context/CurrencyContext";
 
 const PAYMENT_CURRENCY = "EUR";
 
@@ -10,8 +10,11 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
-  const { formatCurrency } = useCurrencyFormatter();
+  const { selectedCurrency, rates, convertCurrency, formatCurrency } = useCurrency();
+  const activeCurrency = selectedCurrency || "EUR";
   const totalPriceEUR = Number(price || 0);
+  const convertedTotal = convertCurrency(totalPriceEUR, activeCurrency, rates);
+  const displayTotal = formatCurrency(convertedTotal, activeCurrency);
 
   const [stripeApi, setStripeApi] = useState({ stripe: null, elements: null, paymentElement: null });
   const [stripeProcessing, setStripeProcessing] = useState(false);
@@ -231,7 +234,12 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
             </div>
             <div>
               <span className="payment-summary-label">Total</span>
-              <span>{formatCurrency(totalPriceEUR)}</span>
+              <span>
+                {displayTotal}
+                <small style={{ display: "block", fontSize: "11px", opacity: 0.7 }}>
+                  Charged in {formatCurrency(totalPriceEUR, "EUR")}
+                </small>
+              </span>
             </div>
           </div>
 

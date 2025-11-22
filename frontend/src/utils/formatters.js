@@ -1,21 +1,14 @@
 import { useCurrency } from "../context/CurrencyContext";
 
 export function useCurrencyFormatter() {
-  const { currency, convert } = useCurrency();
+  const { currency, formatCurrency: ctxFormatCurrency } = useCurrency();
 
-  function formatCurrency(valueEUR) {
-    const converted = convert(valueEUR);
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency,
-    }).format(converted);
+  function formatCurrency(value, targetCurrency = currency) {
+    return ctxFormatCurrency(value, targetCurrency);
   }
 
   function formatCurrencyEUR(value) {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "EUR",
-    }).format(value);
+    return ctxFormatCurrency(value, "EUR");
   }
 
   return { formatCurrency, formatCurrencyEUR };

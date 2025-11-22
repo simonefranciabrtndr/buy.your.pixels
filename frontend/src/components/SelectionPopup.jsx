@@ -8,7 +8,7 @@ import React, {
 import CanvasOverlay from "./CanvasOverlay";
 import PaymentStep from "./payment/PaymentStep";
 import "./SelectionPopup.css";
-import { useCurrencyFormatter } from "../utils/formatters";
+import { useCurrency } from "../context/CurrencyContext";
 
 let isEditMode = false;
 
@@ -55,7 +55,8 @@ export default function SelectionPopup({
   onFinalizeEdit,
 }) {
   const isEditMode = mode === "edit";
-  const { formatCurrency } = useCurrencyFormatter();
+  const { selectedCurrency, rates, convertCurrency, formatCurrency } = useCurrency();
+  const activeCurrency = selectedCurrency || "EUR";
   // step machine: summary → upload → link → final → editing
   const [step, setStep] = useState(isEditMode ? "upload" : "summary");
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -89,6 +90,9 @@ export default function SelectionPopup({
   const boundingHeight = bounds ? Math.round(bounds.h) : 0;
   const formattedPixels = Math.round(totalAreaPixels).toLocaleString();
   const priceValueEUR = Number(price || 0);
+  const convertedPrice = convertCurrency(priceValueEUR, activeCurrency, rates);
+  const displayPrice = formatCurrency(convertedPrice, activeCurrency);
+  const displayPriceEUR = formatCurrency(priceValueEUR, "EUR");
 
   /**
    * Determine a placement for the popup that keeps it off the selected region
@@ -541,7 +545,7 @@ export default function SelectionPopup({
           <div className="popup-area">
             Available pixels: {formattedPixels}
           </div>
-          <div className="popup-price">{formatCurrency(priceValueEUR)}</div>
+          <div className="popup-price">{displayPrice}</div>
           <button className="popup-buy" onClick={() => setStep("upload")}>Buy</button>
         </div>
       </div>
@@ -792,8 +796,8 @@ export default function SelectionPopup({
             {isBottomPlacement && finalButtons}
             <p className="final-text">You can edit your banner or proceed to payment.</p>
             <p className="final-price">
-              {formatCurrency(priceValueEUR)}
-              <span className="final-price-note">(charged in EUR)</span>
+              {displayPrice}
+              <span className="final-price-note">Charged in {displayPriceEUR}</span>
             </p>
             {trimmedLink && (
               <div className="popup-link-preview">
