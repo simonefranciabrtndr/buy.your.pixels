@@ -5,9 +5,12 @@ import { createRoot } from "react-dom/client";
 import Home from "./Home.jsx";
 import "./styles/global.css";
 import { CurrencyProvider } from "./context/CurrencyContext";
+import { AuthProvider } from "./context/AuthContext";
 
 createRoot(document.getElementById("root")).render(
-  <CurrencyProvider>
-    <Home />
-  </CurrencyProvider>
+  <AuthProvider>
+    <CurrencyProvider>
+      <Home />
+    </CurrencyProvider>
+  </AuthProvider>
 );
