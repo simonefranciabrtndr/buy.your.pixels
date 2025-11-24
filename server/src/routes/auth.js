@@ -1,31 +1,151 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import fetch from "node-fetch";
+import jwt from "jsonwebtoken";
 import {
   createUser,
   createUserFromProvider,
   findUserByEmail,
   findUserById,
   findUserByProvider,
+  findOrCreateOAuthUser as userStoreFindOrCreateOAuthUser,
 } from "../userStore.js";
 import { issueAuthCookie, clearAuthCookie } from "../middleware/auth.js";
+import {
+  getGoogleAuthURL,
+  getGoogleUser,
+  getDiscordAuthURL,
+  getDiscordUser,
+  getAppleAuthURL,
+  getAppleUser,
+} from "../services/oauth.js";
 
 const router = express.Router();
 
 const normalizeEmail = (value = "") => value.trim().toLowerCase();
 const isValidEmail = (email = "") => /\S+@\S+\.\S+/.test(email);
 const isValidPassword = (password = "") => password.length >= 8;
-const buildUrl = (base, params) => {
-  const url = new URL(base);
-  Object.entries(params).forEach(([key, value]) => {
-    if (typeof value !== "undefined" && value !== null) {
-      url.searchParams.set(key, value);
-    }
+const SOCIAL_SUCCESS_REDIRECT = process.env.AUTH_SUCCESS_REDIRECT_URL || "https://yourpixels.online/social-login";
+const ERROR_REDIRECT = process.env.AUTH_ERROR_REDIRECT_URL || "/?auth=error";
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const DISCORD_TOKEN_URL = "https://discord.com/api/oauth2/token";
+const APPLE_TOKEN_URL = "https://appleid.apple.com/auth/token";
+
+const fallbackFindOrCreateOAuthUser = async (provider, profile) => {
+  const existing = await findUserByProvider(provider, profile.providerId);
+  if (existing?.user) {
+    return existing.user;
+  }
+  return createUserFromProvider({
+    provider,
+    providerId: profile.providerId,
+    email: profile.email,
   });
-  return url.toString();
 };
 
-const successRedirect = process.env.AUTH_SUCCESS_REDIRECT_URL || "/";
-const errorRedirect = process.env.AUTH_ERROR_REDIRECT_URL || "/?auth=error";
+const findOrCreateOAuthUser = userStoreFindOrCreateOAuthUser || fallbackFindOrCreateOAuthUser;
+
+const redirectWithToken = (res, user) => {
+  const token = issueAuthCookie(res, { userId: user.id, email: user.email });
+  const joiner = SOCIAL_SUCCESS_REDIRECT.includes("?") ? "&" : "?";
+  const destination = `${SOCIAL_SUCCESS_REDIRECT}${joiner}token=${encodeURIComponent(token)}`;
+  return res.redirect(destination);
+};
+
+const decodeJwtPayload = (token = "") => {
+  try {
+    const [, payload] = token.split(".");
+    if (!payload) return null;
+    const padded = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const buffer = Buffer.from(padded, "base64");
+    return JSON.parse(buffer.toString("utf8"));
+  } catch {
+    return null;
+  }
+};
+
+const postForm = async (url, params) => {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams(params),
+  });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(text || "OAuth token exchange failed");
+  }
+  return response.json();
+};
+
+const exchangeGoogleCode = async (code) => {
+  const payload = {
+    code,
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+    redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+    grant_type: "authorization_code",
+  };
+  return postForm(GOOGLE_TOKEN_URL, payload);
+};
+
+const exchangeDiscordCode = async (code) => {
+  const payload = {
+    code,
+    client_id: process.env.DISCORD_CLIENT_ID,
+    client_secret: process.env.DISCORD_CLIENT_SECRET,
+    redirect_uri: process.env.DISCORD_REDIRECT_URI,
+    grant_type: "authorization_code",
+  };
+  return postForm(DISCORD_TOKEN_URL, payload);
+};
+
+const createAppleClientSecret = () => {
+  const teamId = process.env.APPLE_TEAM_ID;
+  const clientId = process.env.APPLE_CLIENT_ID;
+  const keyId = process.env.APPLE_KEY_ID;
+  const privateKey = process.env.APPLE_PRIVATE_KEY?.replace(/\\n/g, "\n");
+  if (!teamId || !clientId || !keyId || !privateKey) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  return jwt.sign(
+    {
+      iss: teamId,
+      iat: now,
+      exp: now + 60 * 5,
+      aud: "https://appleid.apple.com",
+      sub: clientId,
+    },
+    privateKey,
+    {
+      algorithm: "ES256",
+      header: { kid: keyId },
+    }
+  );
+};
+
+const exchangeAppleCode = async (code) => {
+  const clientSecret = createAppleClientSecret();
+  if (!clientSecret) {
+    throw new Error("Apple credentials not configured");
+  }
+  const payload = {
+    grant_type: "authorization_code",
+    code,
+    redirect_uri: process.env.APPLE_REDIRECT_URI,
+    client_id: process.env.APPLE_CLIENT_ID,
+    client_secret: clientSecret,
+  };
+  return postForm(APPLE_TOKEN_URL, payload);
+};
+
+const fetchDiscordRawProfile = async (accessToken) => {
+  if (!accessToken) return null;
+  const response = await fetch("https://discord.com/api/users/@me", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) return null;
+  return response.json();
+};
 
 router.post("/register", async (req, res) => {
   try {
@@ -104,106 +224,106 @@ router.get("/me", async (req, res) => {
   }
 });
 
-const buildProviderUrl = (provider) => {
-  switch (provider) {
-    case "google": {
-      const clientId = process.env.GOOGLE_CLIENT_ID;
-      const redirectUri = process.env.GOOGLE_REDIRECT_URI;
-      if (!clientId || !redirectUri) return null;
-      return buildUrl("https://accounts.google.com/o/oauth2/v2/auth", {
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: "code",
-        scope: "openid email profile",
-        prompt: "select_account",
-        access_type: "offline",
-      });
-    }
-    case "apple": {
-      const clientId = process.env.APPLE_CLIENT_ID;
-      const redirectUri = process.env.APPLE_REDIRECT_URI;
-      if (!clientId || !redirectUri) return null;
-      return buildUrl("https://appleid.apple.com/auth/authorize", {
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: "code",
-        response_mode: "query",
-        scope: "name email",
-      });
-    }
-    case "discord": {
-      const clientId = process.env.DISCORD_CLIENT_ID;
-      const redirectUri = process.env.DISCORD_REDIRECT_URI;
-      if (!clientId || !redirectUri) return null;
-      return buildUrl("https://discord.com/api/oauth2/authorize", {
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: "code",
-        scope: "identify email",
-        prompt: "consent",
-      });
-    }
-    default:
-      return null;
-  }
-};
-
-const buildProviderHandlers = [
-  { key: "google" },
-  { key: "apple" },
-  { key: "discord" },
-];
-
-buildProviderHandlers.forEach(({ key }) => {
-  router.get(`/${key}/url`, (req, res) => {
-    const url = buildProviderUrl(key);
-    if (!url) {
-      return res.json({ url: null, error: `${key} OAuth not configured` });
-    }
+router.get("/google/url", async (_req, res) => {
+  try {
+    const url = await getGoogleAuthURL();
     return res.json({ url });
-  });
+  } catch (error) {
+    console.error("Google auth URL error", error);
+    return res.json({ url: null });
+  }
 });
 
-const fetchProviderProfile = async (provider, code) => {
-  // Placeholder for real OAuth exchange.
-  // TODO: Exchange `code` for tokens and fetch user profile from provider APIs.
-  return {
-    providerId: `stub-${provider}-${code}`,
-    email: null,
-  };
-};
+router.get("/discord/url", async (_req, res) => {
+  try {
+    const url = await getDiscordAuthURL();
+    return res.json({ url });
+  } catch (error) {
+    console.error("Discord auth URL error", error);
+    return res.json({ url: null });
+  }
+});
 
-const handleProviderCallback = (provider) => {
-  return async (req, res) => {
-    const code = req.query?.code;
-    if (!code) {
-      return res.redirect(errorRedirect);
-    }
-    try {
-      const profile = await fetchProviderProfile(provider, code);
-      if (!profile?.providerId) {
-        return res.redirect(errorRedirect);
-      }
-      let existing = await findUserByProvider(provider, profile.providerId);
-      if (!existing?.user) {
-        const created = await createUserFromProvider({
-          provider,
-          providerId: profile.providerId,
-          email: profile.email,
-        });
-        existing = { user: created };
-      }
-      issueAuthCookie(res, { userId: existing.user.id, email: existing.user.email });
-      return res.redirect(successRedirect);
-    } catch (error) {
-      console.error(`${provider} OAuth error`, error);
-      return res.redirect(errorRedirect);
-    }
-  };
-};
+router.get("/apple/url", async (_req, res) => {
+  try {
+    const url = await getAppleAuthURL();
+    return res.json({ url });
+  } catch (error) {
+    console.error("Apple auth URL error", error);
+    return res.json({ url: null });
+  }
+});
 
-buildProviderHandlers.forEach(({ key }) => {
-  router.get(`/${key}/callback`, handleProviderCallback(key));
+router.get("/google/callback", async (req, res) => {
+  const code = req.query?.code;
+  if (!code) {
+    return res.redirect(ERROR_REDIRECT);
+  }
+  try {
+    const tokens = await exchangeGoogleCode(code);
+    const profile = await getGoogleUser(tokens);
+    const decoded = decodeJwtPayload(tokens?.id_token);
+    const providerId = decoded?.sub || profile?.email;
+    if (!providerId) {
+      throw new Error("Missing Google provider ID");
+    }
+    const user = await findOrCreateOAuthUser("google", {
+      providerId,
+      email: profile?.email || decoded?.email || null,
+    });
+    return redirectWithToken(res, user);
+  } catch (error) {
+    console.error("Google OAuth callback error", error);
+    return res.redirect(ERROR_REDIRECT);
+  }
+});
+
+router.get("/discord/callback", async (req, res) => {
+  const code = req.query?.code;
+  if (!code) {
+    return res.redirect(ERROR_REDIRECT);
+  }
+  try {
+    const tokens = await exchangeDiscordCode(code);
+    const profile = await getDiscordUser(tokens);
+    const rawProfile = await fetchDiscordRawProfile(tokens?.access_token);
+    const providerId = rawProfile?.id || profile?.email;
+    if (!providerId) {
+      throw new Error("Missing Discord provider ID");
+    }
+    const user = await findOrCreateOAuthUser("discord", {
+      providerId,
+      email: profile?.email || null,
+    });
+    return redirectWithToken(res, user);
+  } catch (error) {
+    console.error("Discord OAuth callback error", error);
+    return res.redirect(ERROR_REDIRECT);
+  }
+});
+
+router.post("/apple/callback", async (req, res) => {
+  const code = req.body?.code || req.query?.code;
+  if (!code) {
+    return res.redirect(ERROR_REDIRECT);
+  }
+  try {
+    const tokens = await exchangeAppleCode(code);
+    const decoded = decodeJwtPayload(tokens?.id_token);
+    const profile = await getAppleUser(tokens?.id_token);
+    const providerId = decoded?.sub || profile?.email;
+    if (!providerId) {
+      throw new Error("Missing Apple provider ID");
+    }
+    const user = await findOrCreateOAuthUser("apple", {
+      providerId,
+      email: profile?.email || decoded?.email || null,
+    });
+    return redirectWithToken(res, user);
+  } catch (error) {
+    console.error("Apple OAuth callback error", error);
+    return res.redirect(ERROR_REDIRECT);
+  }
 });
 
 export default router;
