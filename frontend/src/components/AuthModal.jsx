@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import "./AuthModal.css";
 
 export default function AuthModal({ onClose }) {
-  const { login, register, startSocialLogin, authLoading } = useAuth();
+  const { login, register, socialLoginURL } = useAuth();
   const [mode, setMode] = useState("login"); // "login" | "signup"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -89,13 +89,31 @@ export default function AuthModal({ onClose }) {
         <div className="authmodal-divider">or continue with</div>
 
         <div className="authmodal-socials">
-          <button onClick={() => startSocialLogin("google")} className="google">
+          <button
+            className="social-btn google"
+            type="button"
+            onClick={() => {
+              window.location.href = socialLoginURL("google");
+            }}
+          >
             Continue with Google
           </button>
-          <button onClick={() => startSocialLogin("apple")} className="apple">
+          <button
+            className="social-btn apple"
+            type="button"
+            onClick={() => {
+              window.location.href = socialLoginURL("apple");
+            }}
+          >
             Continue with Apple
           </button>
-          <button onClick={() => startSocialLogin("discord")} className="discord">
+          <button
+            className="social-btn discord"
+            type="button"
+            onClick={() => {
+              window.location.href = socialLoginURL("discord");
+            }}
+          >
             Continue with Discord
           </button>
         </div>

@@ -10,13 +10,16 @@ export function AuthProvider({ children }) {
   // Restore session on startup
   // ===========================================================
   async function fetchMe() {
+    setAuthLoading(true);
     try {
       const res = await fetch("/api/auth/me", {
         credentials: "include"
       });
       const data = await res.json();
-      if (data && data.id) {
+      if (data?.id) {
         setCurrentUser(data);
+      } else if (data?.user) {
+        setCurrentUser(data.user);
       } else {
         setCurrentUser(null);
       }
@@ -83,11 +86,48 @@ export function AuthProvider({ children }) {
     }
   }
 
+  function socialLoginURL(provider) {
+    return `/api/auth/${provider}/url`;
+  }
+
+  async function handleSocialRedirect() {
+    if (typeof window === "undefined") return;
+    setAuthLoading(true);
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      if (!token) {
+        await fetchMe();
+      } else {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const data = await res.json();
+        if (data?.user) {
+          setCurrentUser(data.user);
+        } else if (data?.id) {
+          setCurrentUser(data);
+        } else {
+          setCurrentUser(null);
+        }
+      }
+    } catch (error) {
+      console.error("AuthContext handleSocialRedirect error:", error);
+      setCurrentUser(null);
+    } finally {
+      setAuthLoading(false);
+      const cleanUrl = window.location.origin + "/";
+      window.history.replaceState({}, document.title, cleanUrl);
+    }
+  }
+
   // ===========================================================
   // INITIAL LOAD
   // ===========================================================
   useEffect(() => {
-    fetchMe();
+    if (typeof window !== "undefined" && window.location.pathname === "/social-login") {
+      handleSocialRedirect();
+    } else {
+      fetchMe();
+    }
   }, []);
 
   return (
@@ -98,7 +138,9 @@ export function AuthProvider({ children }) {
         login,
         register,
         logout,
-        startSocialLogin
+        startSocialLogin,
+        socialLoginURL,
+        handleSocialRedirect
       }}
     >
       {children}
