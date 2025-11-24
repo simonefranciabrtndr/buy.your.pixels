@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import morgan from "morgan";
+import cookieParser from "cookie-parser";
 import { v4 as uuid } from "uuid";
 import crypto from "crypto";
 import Stripe from "stripe";
@@ -18,6 +19,8 @@ import {
 } from "./purchaseStore.js";
 import { sendProfileWelcome } from "./notifications.js";
 import { createProfileRecord, findProfileByEmail, findProfileById } from "./profileStore.js";
+import authRouter from "./routes/auth.js";
+import { authMiddleware } from "./middleware/auth.js";
 
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: "2024-06-20" }) : null;
 
@@ -139,12 +142,16 @@ export const createApp = () => {
       credentials: true,
     })
   );
+  app.use(cookieParser());
   app.use(express.json({ limit: "5mb" }));
   app.use(morgan("dev"));
+  app.use(authMiddleware);
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });
   });
+
+  app.use("/api/auth", authRouter);
 
   app.post("/api/checkout/session", async (req, res) => {
     const { area, price, currency = "eur", metadata = {} } = req.body || {};

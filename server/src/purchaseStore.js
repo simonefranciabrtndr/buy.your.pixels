@@ -2,6 +2,7 @@ import pg from "pg";
 import { v4 as uuid } from "uuid";
 import { config } from "./config.js";
 import { initializeProfileStore } from "./profileStore.js";
+import { initializeUserStore } from "./userStore.js";
 
 let pool = null;
 
@@ -57,6 +58,7 @@ export const initializePurchaseStore = async () => {
   `);
 
   await initializeProfileStore(pool);
+  await initializeUserStore(pool);
 };
 
 const isUuid = (value = "") => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
