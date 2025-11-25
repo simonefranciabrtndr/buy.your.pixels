@@ -130,8 +130,9 @@ const attachProfileFromAuth = (req) => {
 export const createApp = () => {
   const app = express();
   app.use(helmet());
-  const allowedStatic = [
+  const allowedOrigins = [
     "https://yourpixels.online",
+    "https://www.yourpixels.online",
     "http://localhost:5173",
   ];
 
@@ -139,7 +140,7 @@ export const createApp = () => {
     cors({
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        if (allowedStatic.includes(origin)) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
         if (origin.endsWith(".vercel.app")) return callback(null, true);
         return callback(new Error(`Not allowed by CORS: ${origin}`));
       },
