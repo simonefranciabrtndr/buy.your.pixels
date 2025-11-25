@@ -131,9 +131,26 @@ export default function ProfileManagerModal({
     }
   };
 
-  const startOAuth = (provider) => {
+  const startOAuth = async (provider) => {
     if (!apiBase) return;
-    window.location.href = `${apiBase}/api/auth/${provider}`;
+    try {
+      const res = await fetch(`${apiBase}/api/auth/${provider}`, {
+        method: "GET",
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        console.error("OAuth error: missing redirect URL", data);
+        alert("Unable to start authentication.");
+      }
+    } catch (err) {
+      console.error("OAuth error", err);
+      alert("Authentication provider unavailable.");
+    }
   };
 
   const renderAuthForm = () => {
