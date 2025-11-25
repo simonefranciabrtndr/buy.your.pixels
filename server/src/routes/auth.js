@@ -21,6 +21,7 @@ const normalizeEmail = (value = "") => value.trim().toLowerCase();
 const isValidEmail = (email = "") => /\S+@\S+\.\S+/.test(email);
 const isValidPassword = (password = "") => password.length >= 8;
 const SOCIAL_SUCCESS_REDIRECT = process.env.AUTH_SUCCESS_REDIRECT_URL || "https://yourpixels.online/social-login";
+console.log("🔥 AUTH_REDIRECT_TARGET =", SOCIAL_SUCCESS_REDIRECT);
 const ERROR_REDIRECT = process.env.AUTH_ERROR_REDIRECT_URL || "/?auth=error";
 
 const ensureOAuthUser = async (provider, email) => {
@@ -149,6 +150,7 @@ router.get("/google/callback", async (req, res) => {
   try {
     const profile = await handleGoogleCallback(code);
     const user = await ensureOAuthUser("google", profile?.email || null);
+    console.log("🔥 Google callback completed — redirecting user to:", SOCIAL_SUCCESS_REDIRECT);
     return redirectWithToken(res, user);
   } catch (error) {
     console.error("Google OAuth callback error", error);

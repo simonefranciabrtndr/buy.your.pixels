@@ -2,6 +2,9 @@ import querystring from "querystring";
 import jwt from "jsonwebtoken";
 import fetch from "node-fetch";
 
+const SOCIAL_SUCCESS_REDIRECT = process.env.AUTH_SUCCESS_REDIRECT_URL || "https://yourpixels.online/social-login";
+console.log("🔥 Loaded SOCIAL_SUCCESS_REDIRECT (oauth.js):", SOCIAL_SUCCESS_REDIRECT);
+
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const GOOGLE_REDIRECT_URI = process.env.GOOGLE_REDIRECT_URI;
