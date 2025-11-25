@@ -1,14 +1,30 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import "./AuthModal.css";
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || "";
+
 export default function AuthModal({ onClose }) {
-  const { login, register, socialLoginURL } = useAuth();
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const { login, register } = useAuth();
+  const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+
+  const socialBase = useMemo(() => {
+    const trimmed = API_BASE_URL.trim();
+    if (!trimmed) return "";
+    return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+  }, []);
+
+  const startOAuth = (provider) => {
+    const url = `${socialBase}/api/auth/${provider}`;
+    window.location.href = url;
+    if (typeof onClose === "function") {
+      onClose();
+    }
+  };
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -54,6 +70,31 @@ export default function AuthModal({ onClose }) {
           </button>
         </div>
 
+        <div className="auth-social-section">
+          <button
+            type="button"
+            className="social-btn google-btn"
+            onClick={() => startOAuth("google")}
+          >
+            <span className="social-icon">G</span>
+            Continue with Google
+          </button>
+          <button
+            type="button"
+            className="social-btn apple-btn"
+            onClick={() => startOAuth("apple")}
+          >
+            <span className="social-icon"></span>
+            Continue with Apple
+          </button>
+        </div>
+
+        <div className="auth-divider">
+          <span />
+          <p>or continue with email</p>
+          <span />
+        </div>
+
         <form className="authmodal-form" onSubmit={handleSubmit}>
           <input
             type="email"
@@ -85,38 +126,6 @@ export default function AuthModal({ onClose }) {
             {mode === "login" ? "Log In" : "Create Account"}
           </button>
         </form>
-
-        <div className="authmodal-divider">or continue with</div>
-
-        <div className="authmodal-socials">
-          <button
-            className="social-btn google"
-            type="button"
-            onClick={() => {
-              window.location.href = socialLoginURL("google");
-            }}
-          >
-            Continue with Google
-          </button>
-          <button
-            className="social-btn apple"
-            type="button"
-            onClick={() => {
-              window.location.href = socialLoginURL("apple");
-            }}
-          >
-            Continue with Apple
-          </button>
-          <button
-            className="social-btn discord"
-            type="button"
-            onClick={() => {
-              window.location.href = socialLoginURL("discord");
-            }}
-          >
-            Continue with Discord
-          </button>
-        </div>
       </div>
     </div>
   );
