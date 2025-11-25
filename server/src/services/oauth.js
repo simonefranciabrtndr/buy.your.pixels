@@ -1,6 +1,7 @@
 import querystring from "querystring";
 import jwt from "jsonwebtoken";
 import fetch from "node-fetch";
+import { randomUUID } from "crypto";
 
 const SOCIAL_SUCCESS_REDIRECT = process.env.AUTH_SUCCESS_REDIRECT_URL || "https://yourpixels.online/social-login";
 console.log("🔥 Loaded SOCIAL_SUCCESS_REDIRECT (oauth.js):", SOCIAL_SUCCESS_REDIRECT);
@@ -53,11 +54,12 @@ export async function handleGoogleCallback(code) {
     { headers: { Authorization: `Bearer ${tokenRes.access_token}` } }
   ).then(res => res.json());
 
-  return {
-    email: userRes.email,
-    name: userRes.name,
-    picture: userRes.picture
+  const profile = {
+    email: userRes.email || null,
+    providerId: userRes.sub || `google-${randomUUID()}`,
   };
+  console.log("OAuth profile:", profile);
+  return profile;
 }
 
 /* --------------------------------------- */
@@ -112,10 +114,10 @@ export async function handleAppleCallback(code) {
   }).then(res => res.json());
 
   const idToken = jwt.decode(tokenRes.id_token);
-
-  return {
-    email: idToken.email,
-    name: idToken.name || "",
-    picture: null
+  const profile = {
+    email: idToken?.email || null,
+    providerId: idToken?.sub || `apple-${randomUUID()}`,
   };
+  console.log("OAuth profile:", profile);
+  return profile;
 }

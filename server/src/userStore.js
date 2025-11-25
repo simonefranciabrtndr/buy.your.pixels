@@ -1,4 +1,6 @@
 import { v4 as uuid } from "uuid";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 
 let pool = null;
 
@@ -71,15 +73,40 @@ export const findUserByProvider = async (provider, providerId) => {
 
 export const createUserFromProvider = async ({ provider, providerId, email = null }) => {
   const db = getPool();
+  const normalizedProvider = provider || "oauth";
+  const normalizedProviderId = providerId || `${normalizedProvider}-${uuid()}`;
+
+  const existingProvider = await db.query(
+    `SELECT * FROM users WHERE provider = $1 AND provider_id = $2 LIMIT 1`,
+    [normalizedProvider, normalizedProviderId]
+  );
+  if (existingProvider.rows.length) {
+    return mapUser(existingProvider.rows[0]);
+  }
+
+  if (email) {
+    const existingEmail = await db.query(`SELECT * FROM users WHERE email = $1 LIMIT 1`, [email]);
+    if (existingEmail.rows.length) {
+      const row = existingEmail.rows[0];
+      await db.query(`UPDATE users SET provider = $1, provider_id = $2 WHERE id = $3`, [
+        normalizedProvider,
+        normalizedProviderId,
+        row.id,
+      ]);
+      return mapUser({ ...row, provider: normalizedProvider, provider_id: normalizedProviderId });
+    }
+  }
+
   const id = uuid();
-  const fallbackEmail = email || `${provider}-${providerId}@${provider}.oauth`;
+  const fallbackEmail = email || `${normalizedProvider}-${normalizedProviderId}@${normalizedProvider}.oauth`;
+  const fakeHash = await bcrypt.hash(crypto.randomUUID(), 12);
   const { rows } = await db.query(
     `
       INSERT INTO users (id, email, password_hash, provider, provider_id)
       VALUES ($1, $2, $3, $4, $5)
       RETURNING *;
     `,
-    [id, fallbackEmail, null, provider, providerId]
+    [id, fallbackEmail, fakeHash, normalizedProvider, normalizedProviderId]
   );
   return mapUser(rows[0]);
 };

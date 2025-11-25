@@ -1,5 +1,6 @@
 import express from "express";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import {
   createUser,
   findUserByEmail,
@@ -24,17 +25,23 @@ const SOCIAL_SUCCESS_REDIRECT = process.env.AUTH_SUCCESS_REDIRECT_URL || "https:
 console.log("🔥 AUTH_REDIRECT_TARGET =", SOCIAL_SUCCESS_REDIRECT);
 const ERROR_REDIRECT = process.env.AUTH_ERROR_REDIRECT_URL || "/?auth=error";
 
-const ensureOAuthUser = async (provider, email) => {
-  const providerId = email || `${provider}-${Date.now()}`;
-  const existing = await findUserByProvider(provider, providerId);
-  if (existing?.user) {
-    return existing.user;
+const ensureOAuthUser = async (provider, email, providerIdHint) => {
+  const normalizedProvider = provider || "oauth";
+  const providerId = providerIdHint || email || `${normalizedProvider}-${crypto.randomUUID()}`;
+
+  const existingByProvider = await findUserByProvider(normalizedProvider, providerId);
+  if (existingByProvider?.user) {
+    return existingByProvider.user;
   }
-  return createUserFromProvider({
-    provider,
-    providerId,
-    email,
-  });
+
+  if (email) {
+    const existingByEmail = await findUserByEmail(email);
+    if (existingByEmail?.raw) {
+      return createUserFromProvider({ provider: normalizedProvider, providerId, email });
+    }
+  }
+
+  return createUserFromProvider({ provider: normalizedProvider, providerId, email });
 };
 
 const redirectWithToken = (res, user) => {
@@ -149,11 +156,11 @@ router.get("/google/callback", async (req, res) => {
   }
   try {
     const profile = await handleGoogleCallback(code);
-    const user = await ensureOAuthUser("google", profile?.email || null);
+    const user = await ensureOAuthUser("google", profile?.email || null, profile?.providerId);
     console.log("🔥 Google callback completed — redirecting user to:", SOCIAL_SUCCESS_REDIRECT);
     return redirectWithToken(res, user);
   } catch (error) {
-    console.error("Google OAuth callback error", error);
+    console.error("OAuth callback error", error);
     return res.redirect(ERROR_REDIRECT);
   }
 });
@@ -165,10 +172,10 @@ router.post("/apple/callback", async (req, res) => {
   }
   try {
     const profile = await handleAppleCallback(code);
-    const user = await ensureOAuthUser("apple", profile?.email || null);
+    const user = await ensureOAuthUser("apple", profile?.email || null, profile?.providerId);
     return redirectWithToken(res, user);
   } catch (error) {
-    console.error("Apple OAuth callback error", error);
+    console.error("OAuth callback error", error);
     return res.redirect(ERROR_REDIRECT);
   }
 });
