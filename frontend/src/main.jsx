@@ -7,14 +7,14 @@ import Home from "./Home.jsx";
 import "./styles/global.css";
 import { CurrencyProvider } from "./context/CurrencyContext";
 import { AuthProvider } from "./context/AuthContext";
-import AuthSocialRedirect from "./components/AuthSocialRedirect.jsx";
+import SocialLogin from "./pages/SocialLogin.jsx";
 
 createRoot(document.getElementById("root")).render(
   <AuthProvider>
     <CurrencyProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/social-login" element={<AuthSocialRedirect />} />
+          <Route path="/social-login" element={<SocialLogin />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </BrowserRouter>
