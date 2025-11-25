@@ -22,6 +22,7 @@ export default function ProfileManagerModal({
 }) {
   const { selectedCurrency, currency, rates, convertCurrency, formatCurrency } = useCurrency();
   const activeCurrency = selectedCurrency || currency || "EUR";
+  const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
   const [form, setForm] = useState({
     email: "",
     username: "",
@@ -33,6 +34,7 @@ export default function ProfileManagerModal({
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
   const [authMode, setAuthMode] = useState("register");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const hasProfile = Boolean(token && profile);
   const canSubmit = useMemo(() => form.email && form.username && form.password, [form]);
@@ -79,6 +81,11 @@ export default function ProfileManagerModal({
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!canSubmit) return;
+    if (authMode === "register" && form.password !== confirmPassword) {
+      setStatus("error");
+      setMessage("Passwords do not match.");
+      return;
+    }
     setStatus("submitting");
     setMessage("");
     try {
@@ -124,10 +131,39 @@ export default function ProfileManagerModal({
     }
   };
 
+  const startOAuth = (provider) => {
+    if (!apiBase) return;
+    window.location.href = `${apiBase}/api/auth/${provider}`;
+  };
+
   const renderAuthForm = () => {
     if (authMode === "login") {
       return (
         <form className="profile-form-card" onSubmit={handleLogin}>
+          <div className="auth-social-section">
+            <button
+              type="button"
+              className="social-btn google-btn"
+              onClick={() => startOAuth("google")}
+            >
+              <span className="social-icon">G</span>
+              Continue with Google
+            </button>
+            <button
+              type="button"
+              className="social-btn apple-btn"
+              onClick={() => startOAuth("apple")}
+            >
+              <span className="social-icon"></span>
+              Continue with Apple
+            </button>
+          </div>
+
+          <div className="auth-divider">
+            <span />
+            <p>or continue with email</p>
+            <span />
+          </div>
           <label className="profile-field">
             <span>Email</span>
             <input
@@ -158,6 +194,30 @@ export default function ProfileManagerModal({
 
     return (
       <form className="profile-form-card" onSubmit={handleSubmit}>
+        <div className="auth-social-section">
+          <button
+            type="button"
+            className="social-btn google-btn"
+            onClick={() => startOAuth("google")}
+          >
+            <span className="social-icon">G</span>
+            Continue with Google
+          </button>
+          <button
+            type="button"
+            className="social-btn apple-btn"
+            onClick={() => startOAuth("apple")}
+          >
+            <span className="social-icon"></span>
+            Continue with Apple
+          </button>
+        </div>
+
+        <div className="auth-divider">
+          <span />
+          <p>or continue with email</p>
+          <span />
+        </div>
         <label className="profile-field">
           <span>Email</span>
           <input
@@ -185,6 +245,17 @@ export default function ProfileManagerModal({
             value={form.password}
             onChange={handleChange("password")}
             placeholder="••••••••"
+            required
+            minLength={8}
+          />
+        </label>
+        <label className="profile-field">
+          <span>Confirm password</span>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+            placeholder="Repeat password"
             required
             minLength={8}
           />

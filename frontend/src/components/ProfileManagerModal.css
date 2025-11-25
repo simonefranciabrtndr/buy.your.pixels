@@ -327,3 +327,66 @@
 .profile-auth-toggle button.active {
   background: rgba(255, 255, 255, 0.2);
 }
+
+.auth-social-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.social-btn {
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  padding: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 12px 25px rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.social-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.google-btn {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+}
+
+.apple-btn {
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+}
+
+.social-icon {
+  font-size: 16px;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  opacity: 0.8;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-divider span {
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.auth-divider p {
+  margin: 0;
+}
