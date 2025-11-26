@@ -1,27 +1,10 @@
 {
   "version": 2,
   "builds": [
-    { "src": "index.html", "use": "@vercel/static" },
-    { "src": "dist/**", "use": "@vercel/static" }
+    { "src": "vite.config.js", "use": "@vercel/static-build", "config": {} }
   ],
   "routes": [
-    {
-      "src": "/assets/(.*)",
-      "dest": "/assets/$1"
-    },
-    {
-      "src": "/(.*\\.(?:js|css|png|jpg|svg|ico|ttf|woff2))",
-      "dest": "/$1"
-    },
-    {
-      "src": "/social-login",
-      "dest": "/index.html",
-      "status": 200
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html",
-      "status": 200
-    }
+    { "src": "/assets/(.*)", "dest": "/assets/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
