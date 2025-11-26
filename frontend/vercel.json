@@ -1,7 +1,8 @@
 {
   "version": 2,
   "builds": [
-    { "src": "package.json", "use": "@vercel/static-build" }
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "dist/**", "use": "@vercel/static" }
   ],
   "routes": [
     {
@@ -9,8 +10,18 @@
       "dest": "/assets/$1"
     },
     {
+      "src": "/(.*\\.(?:js|css|png|jpg|svg|ico|ttf|woff2))",
+      "dest": "/$1"
+    },
+    {
+      "src": "/social-login",
+      "dest": "/index.html",
+      "status": 200
+    },
+    {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/index.html",
+      "status": 200
     }
   ]
 }
