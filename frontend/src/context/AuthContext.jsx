@@ -1,148 +1,92 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useCallback } from "react";
 
-const AuthContext = createContext();
+const AuthContext = createContext(null);
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
 
 export function AuthProvider({ children }) {
-  const [currentUser, setCurrentUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // ===========================================================
-  // Restore session on startup
-  // ===========================================================
-  async function fetchMe() {
-    setAuthLoading(true);
+  const getToken = () => localStorage.getItem("authToken");
+
+  const fetchUser = useCallback(async () => {
+    const token = getToken();
+    if (!token) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const res = await fetch("/api/auth/me", {
-        credentials: "include"
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      if (data?.id) {
-        setCurrentUser(data);
-      } else if (data?.user) {
-        setCurrentUser(data.user);
-      } else {
-        setCurrentUser(null);
-      }
+      setUser(data?.user || null);
     } catch (err) {
-      console.error("AuthContext fetchMe error:", err);
-      setCurrentUser(null);
-    }
-    setAuthLoading(false);
-  }
-
-  // ===========================================================
-  // Email/Password Register
-  // ===========================================================
-  async function register(email, password) {
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password })
-    });
-    if (!res.ok) throw new Error("Registration failed");
-    const data = await res.json();
-    await login(email, password);
-    return data;
-  }
-
-  // ===========================================================
-  // Email/Password Login
-  // ===========================================================
-  async function login(email, password) {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ email, password })
-    });
-    if (!res.ok) throw new Error("Login failed");
-    const data = await res.json();
-    setCurrentUser(data);
-    return data;
-  }
-
-  // ===========================================================
-  // Logout
-  // ===========================================================
-  async function logout() {
-    try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
-        credentials: "include"
-      });
-    } catch {}
-    setCurrentUser(null);
-  }
-
-  // ===========================================================
-  // Social login redirect helper
-  // ===========================================================
-  async function startSocialLogin(provider) {
-    const res = await fetch(`/api/auth/${provider}/url`);
-    const data = await res.json();
-    if (data.url) {
-      window.location.href = data.url;
-    }
-  }
-
-  function socialLoginURL(provider) {
-    return `/api/auth/${provider}/url`;
-  }
-
-  async function handleSocialRedirect() {
-    if (typeof window === "undefined") return;
-    setAuthLoading(true);
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get("token");
-      if (!token) {
-        await fetchMe();
-      } else {
-        const res = await fetch("/api/auth/me", { credentials: "include" });
-        const data = await res.json();
-        if (data?.user) {
-          setCurrentUser(data.user);
-        } else if (data?.id) {
-          setCurrentUser(data);
-        } else {
-          setCurrentUser(null);
-        }
-      }
-    } catch (error) {
-      console.error("AuthContext handleSocialRedirect error:", error);
-      setCurrentUser(null);
+      console.error("Error loading current user:", err);
+      setUser(null);
     } finally {
-      setAuthLoading(false);
-      const cleanUrl = window.location.origin + "/";
-      window.history.replaceState({}, document.title, cleanUrl);
-    }
-  }
-
-  // ===========================================================
-  // INITIAL LOAD
-  // ===========================================================
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.location.pathname === "/social-login") {
-      handleSocialRedirect();
-    } else {
-      fetchMe();
+      setLoading(false);
     }
   }, []);
 
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  useEffect(() => {
+    const handler = () => {
+      fetchUser();
+    };
+    window.addEventListener("auth-updated", handler);
+    return () => window.removeEventListener("auth-updated", handler);
+  }, [fetchUser]);
+
+  const login = async (email, password) => {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Login failed");
+    }
+
+    const token = data.token || data.authToken || null;
+    if (!token) {
+      throw new Error("No token received from server");
+    }
+
+    localStorage.setItem("authToken", token);
+    window.dispatchEvent(new CustomEvent("auth-updated"));
+  };
+
+  const register = async (email, password) => {
+    const res = await fetch(`${API_BASE}/api/auth/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "Registration failed");
+    }
+    return data;
+  };
+
+  const logout = () => {
+    localStorage.removeItem("authToken");
+    setUser(null);
+    window.dispatchEvent(new CustomEvent("auth-updated"));
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        currentUser,
-        authLoading,
-        login,
-        register,
-        logout,
-        startSocialLogin,
-        socialLoginURL,
-        handleSocialRedirect
-      }}
-    >
+    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );
