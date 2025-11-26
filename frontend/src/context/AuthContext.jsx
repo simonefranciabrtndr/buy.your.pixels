@@ -1,97 +1,80 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 
 const AuthContext = createContext(null);
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
-
-export function AuthProvider({ children }) {
+export const AuthProvider = ({ children }) => {
+  const API_URL = import.meta.env.VITE_API_URL;
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const getToken = () => localStorage.getItem("authToken");
-
-  const fetchUser = useCallback(async () => {
-    const token = getToken();
+  // Fetch user from backend
+  const loadUser = useCallback(async () => {
+    const token = window.localStorage.getItem("authToken");
     if (!token) {
       setUser(null);
       setLoading(false);
       return;
     }
-
     try {
-      const res = await fetch(`${API_BASE}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      setUser(data?.user || null);
+      if (!data?.user) {
+        window.localStorage.removeItem("authToken");
+        setUser(null);
+      } else {
+        setUser(data.user);
+      }
     } catch (err) {
-      console.error("Error loading current user:", err);
+      console.error("AuthContext loadUser error:", err);
+      window.localStorage.removeItem("authToken");
       setUser(null);
-    } finally {
-      setLoading(false);
     }
-  }, []);
+    setLoading(false);
+  }, [API_URL]);
 
+  // On mount, load user
   useEffect(() => {
-    fetchUser();
-  }, [fetchUser]);
+    loadUser();
+  }, [loadUser]);
 
+  // Listen for auth-updated from social-login
   useEffect(() => {
-    const handler = () => {
-      fetchUser();
-    };
+    const handler = () => loadUser();
     window.addEventListener("auth-updated", handler);
     return () => window.removeEventListener("auth-updated", handler);
-  }, [fetchUser]);
+  }, [loadUser]);
 
-  const login = async (email, password) => {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+  // login(): store token, notify, reload
+  const login = useCallback((token) => {
+    window.localStorage.setItem("authToken", token);
+    window.dispatchEvent(new Event("auth-updated"));
+  }, []);
 
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || "Login failed");
-    }
-
-    const token = data.token || data.authToken || null;
-    if (!token) {
-      throw new Error("No token received from server");
-    }
-
-    localStorage.setItem("authToken", token);
-    window.dispatchEvent(new CustomEvent("auth-updated"));
-  };
-
-  const register = async (email, password) => {
-    const res = await fetch(`${API_BASE}/api/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) {
-      throw new Error(data.error || "Registration failed");
-    }
-    return data;
-  };
-
-  const logout = () => {
-    localStorage.removeItem("authToken");
+  // logout(): clear token, backend logout, refresh state
+  const logout = useCallback(async () => {
+    const token = window.localStorage.getItem("authToken");
+    window.localStorage.removeItem("authToken");
+    try {
+      await fetch(`${API_URL}/api/auth/logout`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` }
+      });
+    } catch {}
     setUser(null);
-    window.dispatchEvent(new CustomEvent("auth-updated"));
+    setLoading(false);
+  }, [API_URL]);
+
+  const value = {
+    user,
+    loading,
+    login,
+    logout,
+    refresh: loadUser,
   };
 
-  return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
 
-export function useAuth() {
-  return useContext(AuthContext);
-}
+export const useAuth = () => useContext(AuthContext);
