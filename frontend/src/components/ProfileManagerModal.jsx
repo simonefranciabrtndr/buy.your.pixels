@@ -158,14 +158,16 @@ export default function ProfileManagerModal({
       return (
         <form className="profile-form-card" onSubmit={handleLogin}>
           <div className="auth-social-section">
-            <button
-              type="button"
-              className="social-btn google-btn"
-              onClick={() => startOAuth("google")}
-            >
-              <span className="social-icon">G</span>
-              Continue with Google
-            </button>
+            {false && (
+              <button
+                type="button"
+                className="social-btn google-btn"
+                onClick={() => startOAuth("google")}
+              >
+                <span className="social-icon">G</span>
+                Continue with Google
+              </button>
+            )}
             <button
               type="button"
               className="social-btn apple-btn"
@@ -212,14 +214,16 @@ export default function ProfileManagerModal({
     return (
       <form className="profile-form-card" onSubmit={handleSubmit}>
         <div className="auth-social-section">
-          <button
-            type="button"
-            className="social-btn google-btn"
-            onClick={() => startOAuth("google")}
-          >
-            <span className="social-icon">G</span>
-            Continue with Google
-          </button>
+          {false && (
+            <button
+              type="button"
+              className="social-btn google-btn"
+              onClick={() => startOAuth("google")}
+            >
+              <span className="social-icon">G</span>
+              Continue with Google
+            </button>
+          )}
           <button
             type="button"
             className="social-btn apple-btn"
