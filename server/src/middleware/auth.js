@@ -21,11 +21,12 @@ export const authMiddleware = (req, _res, next) => {
 export function issueAuthCookie(res, payload) {
   const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
 
+  console.log("🔥 Setting auth cookie on backend domain:", res?.req?.hostname);
+
   res.cookie("auth_token", token, {
     httpOnly: true,
     secure: true,
     sameSite: "None",
-    domain: ".yourpixels.online",
     path: "/",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
@@ -38,7 +39,6 @@ export function clearAuthCookie(res) {
     httpOnly: true,
     secure: true,
     sameSite: "None",
-    domain: ".yourpixels.online",
     path: "/",
     expires: new Date(0),
   });

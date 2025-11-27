@@ -46,6 +46,7 @@ const ensureOAuthUser = async (provider, email, providerIdHint) => {
 
 const redirectWithToken = (res, user) => {
   issueAuthCookie(res, { userId: user.id, email: user.email });
+  console.log("🔥 redirectWithToken: cookie should now be set");
   return res.redirect(SOCIAL_SUCCESS_REDIRECT);
 };
 
