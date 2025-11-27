@@ -1,16 +1,13 @@
 import jwt from "jsonwebtoken";
 
-const COOKIE_NAME = "auth_token";
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
-
 export const authMiddleware = (req, _res, next) => {
   req.user = null;
-  const token = req.cookies?.[COOKIE_NAME];
+  const token = req.cookies?.auth_token;
   if (!token) {
     return next();
   }
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "dev-secret");
     req.user = {
       id: decoded.userId,
       email: decoded.email,
@@ -21,23 +18,28 @@ export const authMiddleware = (req, _res, next) => {
   next();
 };
 
-export const issueAuthCookie = (res, payload, options = {}) => {
-  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
-  res.cookie(COOKIE_NAME, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    ...options,
-  });
-  return token;
-};
+export function issueAuthCookie(res, payload) {
+  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-export const clearAuthCookie = (res) => {
-  res.clearCookie(COOKIE_NAME, {
+  res.cookie("auth_token", token, {
     httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: true,
+    sameSite: "None",
+    domain: ".yourpixels.online",
     path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
   });
-};
+
+  return token;
+}
+
+export function clearAuthCookie(res) {
+  res.cookie("auth_token", "", {
+    httpOnly: true,
+    secure: true,
+    sameSite: "None",
+    domain: ".yourpixels.online",
+    path: "/",
+    expires: new Date(0),
+  });
+}

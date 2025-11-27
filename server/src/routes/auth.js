@@ -157,6 +157,7 @@ router.get("/google/callback", async (req, res) => {
   try {
     const profile = await handleGoogleCallback(code);
     const user = await ensureOAuthUser("google", profile?.email || null, profile?.providerId);
+    console.log("CALLBACK ISSUING COOKIE FOR:", process.env.NODE_ENV, new Date().toISOString());
     console.log("🔥 Google callback completed — redirecting user to:", SOCIAL_SUCCESS_REDIRECT);
     return redirectWithToken(res, user);
   } catch (error) {
