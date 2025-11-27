@@ -16,18 +16,11 @@ export default function SocialLogin() {
       return;
     }
 
-    try {
-      window.localStorage.setItem("authToken", token);
-      window.dispatchEvent(new CustomEvent("auth-updated"));
-      const timeout = setTimeout(() => {
-        navigate("/", { replace: true });
-      }, 800);
-      return () => clearTimeout(timeout);
-    } catch (error) {
-      console.error("Failed to finalize social login", error);
-      setStatus("error");
-      setMessage("Unable to store session.");
-    }
+    window.dispatchEvent(new CustomEvent("auth-updated"));
+    const timeout = setTimeout(() => {
+      navigate("/", { replace: true });
+    }, 600);
+    return () => clearTimeout(timeout);
   }, [navigate]);
 
   const goHome = () => navigate("/", { replace: true });

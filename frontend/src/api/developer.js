@@ -8,6 +8,7 @@ const DEFAULT_HEADERS = {
 const authFetch = async (path, token, options = {}) => {
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
+    credentials: "include",
     headers: {
       ...DEFAULT_HEADERS,
       Authorization: `Bearer ${token}`,
@@ -24,6 +25,7 @@ const authFetch = async (path, token, options = {}) => {
 export const developerLogin = async (password) => {
   const response = await fetch(`${BASE_URL}/api/developer/login`, {
     method: "POST",
+    credentials: "include",
     headers: DEFAULT_HEADERS,
     body: JSON.stringify({ password }),
   });

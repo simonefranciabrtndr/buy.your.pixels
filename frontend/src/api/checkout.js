@@ -9,6 +9,7 @@ const BASE_URL = inferApiBaseUrl();
 const jsonFetch = async (path, options = {}) => {
   const response = await fetch(`${BASE_URL}${path}`, {
     ...options,
+    credentials: "include",
     headers: {
       ...DEFAULT_HEADERS,
       ...(options.headers || {}),

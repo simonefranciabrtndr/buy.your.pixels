@@ -8,6 +8,7 @@ const DEFAULT_HEADERS = {
 export const registerProfile = async ({ email, username, password, avatarData, subscribeNewsletter }) => {
   const response = await fetch(`${BASE_URL}/api/profile/register`, {
     method: "POST",
+    credentials: "include",
     headers: DEFAULT_HEADERS,
     body: JSON.stringify({
       email,
@@ -27,6 +28,7 @@ export const registerProfile = async ({ email, username, password, avatarData, s
 export const loginProfile = async ({ email, password }) => {
   const response = await fetch(`${BASE_URL}/api/profile/login`, {
     method: "POST",
+    credentials: "include",
     headers: DEFAULT_HEADERS,
     body: JSON.stringify({ email, password }),
   });
@@ -40,6 +42,7 @@ export const loginProfile = async ({ email, password }) => {
 export const fetchProfile = async (token) => {
   const response = await fetch(`${BASE_URL}/api/profile/me`, {
     method: "GET",
+    credentials: "include",
     headers: {
       ...DEFAULT_HEADERS,
       Authorization: `Bearer ${token}`,
@@ -55,6 +58,7 @@ export const fetchProfile = async (token) => {
 export const updateProfilePurchase = async (token, purchaseId, payload) => {
   const response = await fetch(`${BASE_URL}/api/profile/purchases/${encodeURIComponent(purchaseId)}`, {
     method: "PUT",
+    credentials: "include",
     headers: {
       ...DEFAULT_HEADERS,
       Authorization: `Bearer ${token}`,

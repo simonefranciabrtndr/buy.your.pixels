@@ -18,6 +18,7 @@ export const fetchPurchases = async () => {
   const data = await handleResponse(
     await fetch(`${BASE_URL}/api/purchases`, {
       method: "GET",
+      credentials: "include",
       headers: DEFAULT_HEADERS,
     })
   );
@@ -28,6 +29,7 @@ export const createPurchase = async (payload, token) => {
   const data = await handleResponse(
     await fetch(`${BASE_URL}/api/purchases`, {
       method: "POST",
+      credentials: "include",
       headers: {
         ...DEFAULT_HEADERS,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),

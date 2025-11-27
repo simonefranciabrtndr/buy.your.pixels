@@ -1,31 +1,22 @@
-import React, { createContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useCallback, useEffect, useState } from "react";
 
 export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
+  const API_URL = import.meta.env.VITE_API_URL;
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = import.meta.env.VITE_API_URL;
-
-  const fetchUser = useCallback(async () => {
+  const refreshUser = useCallback(async () => {
     try {
-      console.log("🔍 Fetching /api/auth/me...");
       const res = await fetch(`${API_URL}/api/auth/me`, {
         method: "GET",
         credentials: "include",
       });
-
       const data = await res.json();
-      console.log("➡️ /me result:", data);
-
-      if (data?.user) {
-        setUser(data.user);
-      } else {
-        setUser(null);
-      }
-    } catch (err) {
-      console.error("❌ Error fetching user:", err);
+      setUser(data?.user || null);
+    } catch (error) {
+      console.error("AuthContext refreshUser error:", error);
       setUser(null);
     } finally {
       setLoading(false);
@@ -33,34 +24,31 @@ export function AuthProvider({ children }) {
   }, [API_URL]);
 
   useEffect(() => {
-    console.log("🌐 AuthContext mounted — loading user...");
-    fetchUser();
+    refreshUser();
+  }, [refreshUser]);
 
-    const handler = () => {
-      console.log("🔄 auth-updated event received — refreshing user...");
-      fetchUser();
-    };
+  useEffect(() => {
+    const handler = () => refreshUser();
     window.addEventListener("auth-updated", handler);
-
     return () => window.removeEventListener("auth-updated", handler);
-  }, [fetchUser]);
+  }, [refreshUser]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await fetch(`${API_URL}/api/auth/logout`, {
         method: "POST",
         credentials: "include",
       });
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
       setUser(null);
-      localStorage.removeItem("authToken");
-      window.location.reload();
-    } catch (err) {
-      console.error("Logout error:", err);
+      setLoading(false);
     }
-  };
+  }, [API_URL]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{ user, loading, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
