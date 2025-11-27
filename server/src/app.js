@@ -127,17 +127,39 @@ const attachProfileFromAuth = (req) => {
   return verifyProfileToken(token);
 };
 
+const allowedOrigins = [
+  "https://yourpixels.online",
+  "https://www.yourpixels.online",
+  "http://localhost:5173",
+];
+
+const dynamicCors = {
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (origin.endsWith(".vercel.app")) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn("❌ BLOCKED CORS ORIGIN:", origin);
+    return callback(new Error("CORS_NOT_ALLOWED"), false);
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  credentials: true,
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "Origin",
+  ],
+  exposedHeaders: ["Set-Cookie"],
+};
+
 export const createApp = () => {
   const app = express();
+  app.disable("etag");
   app.use(helmet());
-  const allowedOrigin = "https://yourpixels.online";
-
-  app.use(
-    cors({
-      origin: allowedOrigin,
-      credentials: true,
-    })
-  );
+  app.use(cors(dynamicCors));
   app.use(cookieParser());
   app.use(express.json({ limit: "5mb" }));
   app.use(morgan("dev"));
