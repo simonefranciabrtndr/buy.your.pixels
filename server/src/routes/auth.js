@@ -45,10 +45,8 @@ const ensureOAuthUser = async (provider, email, providerIdHint) => {
 };
 
 const redirectWithToken = (res, user) => {
-  const token = issueAuthCookie(res, { userId: user.id, email: user.email });
-  const joiner = SOCIAL_SUCCESS_REDIRECT.includes("?") ? "&" : "?";
-  const destination = `${SOCIAL_SUCCESS_REDIRECT}${joiner}token=${encodeURIComponent(token)}`;
-  return res.redirect(destination);
+  issueAuthCookie(res, { userId: user.id, email: user.email });
+  return res.redirect(SOCIAL_SUCCESS_REDIRECT);
 };
 
 
