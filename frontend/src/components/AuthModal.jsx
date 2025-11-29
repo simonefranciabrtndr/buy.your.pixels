@@ -19,7 +19,7 @@ export default function AuthModal({ onClose }) {
   }, []);
 
   const startOAuth = (provider) => {
-    const url = `${socialBase}/api/auth/${provider}`;
+    const url = `${socialBase}/auth/${provider}`;
     window.location.href = url;
     if (typeof onClose === "function") {
       onClose();

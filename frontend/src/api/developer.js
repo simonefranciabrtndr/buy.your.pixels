@@ -23,7 +23,7 @@ const authFetch = async (path, token, options = {}) => {
 };
 
 export const developerLogin = async (password) => {
-  const response = await fetch(`${BASE_URL}/api/developer/login`, {
+  const response = await fetch(`${BASE_URL}/developer/login`, {
     method: "POST",
     credentials: "include",
     headers: DEFAULT_HEADERS,
@@ -37,10 +37,10 @@ export const developerLogin = async (password) => {
 };
 
 export const fetchDeveloperPurchases = (token) =>
-  authFetch("/api/developer/purchases", token);
+  authFetch("/developer/purchases", token);
 
 export const updateDeveloperPurchase = (token, purchaseId, payload) =>
-  authFetch(`/api/developer/purchases/${encodeURIComponent(purchaseId)}`, token, {
+  authFetch(`/developer/purchases/${encodeURIComponent(purchaseId)}`, token, {
     method: "PATCH",
     body: JSON.stringify(payload),
   });

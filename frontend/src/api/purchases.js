@@ -16,7 +16,7 @@ const handleResponse = async (response) => {
 
 export const fetchPurchases = async () => {
   const data = await handleResponse(
-    await fetch(`${BASE_URL}/api/purchases`, {
+    await fetch(`${BASE_URL}/purchases`, {
       method: "GET",
       credentials: "include",
       headers: DEFAULT_HEADERS,
@@ -27,7 +27,7 @@ export const fetchPurchases = async () => {
 
 export const createPurchase = async (payload, token) => {
   const data = await handleResponse(
-    await fetch(`${BASE_URL}/api/purchases`, {
+    await fetch(`${BASE_URL}/purchases`, {
       method: "POST",
       credentials: "include",
       headers: {

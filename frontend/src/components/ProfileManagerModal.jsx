@@ -134,7 +134,7 @@ export default function ProfileManagerModal({
   const startOAuth = async (provider) => {
     if (!apiBase) return;
     try {
-      const res = await fetch(`${apiBase}/api/auth/${provider}`, {
+      const res = await fetch(`${apiBase}/auth/${provider}`, {
         method: "GET",
         credentials: "include",
       });

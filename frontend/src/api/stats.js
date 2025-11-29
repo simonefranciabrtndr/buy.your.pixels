@@ -15,14 +15,14 @@ const handleResponse = async (response) => {
 };
 
 export const fetchStats = () =>
-  fetch(`${BASE_URL}/api/stats`, {
+  fetch(`${BASE_URL}/stats`, {
     method: "GET",
     credentials: "include",
     headers: DEFAULT_HEADERS,
   }).then(handleResponse);
 
 export const sendPresenceHeartbeat = ({ sessionId, isSelecting = false, selectionPixels = 0 }) =>
-  fetch(`${BASE_URL}/api/presence/heartbeat`, {
+  fetch(`${BASE_URL}/presence/heartbeat`, {
     method: "POST",
     credentials: "include",
     headers: DEFAULT_HEADERS,

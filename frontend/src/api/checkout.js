@@ -36,19 +36,19 @@ export const createCheckoutSession = async ({ area, price, currency = "eur", met
       price: amount,
     },
   };
-  return jsonFetch("/api/checkout/session", {
+  return jsonFetch("/checkout/session", {
     method: "POST",
     body: JSON.stringify(payload),
   });
 };
 
 export const capturePayPalOrder = async (orderId) =>
-  jsonFetch(`/api/paypal/orders/${encodeURIComponent(orderId)}/capture`, {
+  jsonFetch(`/paypal/orders/${encodeURIComponent(orderId)}/capture`, {
     method: "POST",
   });
 
 export const acknowledgePayment = async (sessionId, provider, payload = {}) =>
-  jsonFetch(`/api/checkout/session/${encodeURIComponent(sessionId)}/acknowledge`, {
+  jsonFetch(`/checkout/session/${encodeURIComponent(sessionId)}/acknowledge`, {
     method: "POST",
     body: JSON.stringify({ provider, payload }),
   });

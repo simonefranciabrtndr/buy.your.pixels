@@ -6,7 +6,7 @@ const DEFAULT_HEADERS = {
 };
 
 export const registerProfile = async ({ email, username, password, avatarData, subscribeNewsletter }) => {
-  const response = await fetch(`${BASE_URL}/api/profile/register`, {
+  const response = await fetch(`${BASE_URL}/profile/register`, {
     method: "POST",
     credentials: "include",
     headers: DEFAULT_HEADERS,
@@ -26,7 +26,7 @@ export const registerProfile = async ({ email, username, password, avatarData, s
 };
 
 export const loginProfile = async ({ email, password }) => {
-  const response = await fetch(`${BASE_URL}/api/profile/login`, {
+  const response = await fetch(`${BASE_URL}/profile/login`, {
     method: "POST",
     credentials: "include",
     headers: DEFAULT_HEADERS,
@@ -40,7 +40,7 @@ export const loginProfile = async ({ email, password }) => {
 };
 
 export const fetchProfile = async (token) => {
-  const response = await fetch(`${BASE_URL}/api/profile/me`, {
+  const response = await fetch(`${BASE_URL}/profile/me`, {
     method: "GET",
     credentials: "include",
     headers: {
@@ -56,7 +56,7 @@ export const fetchProfile = async (token) => {
 };
 
 export const updateProfilePurchase = async (token, purchaseId, payload) => {
-  const response = await fetch(`${BASE_URL}/api/profile/purchases/${encodeURIComponent(purchaseId)}`, {
+  const response = await fetch(`${BASE_URL}/profile/purchases/${encodeURIComponent(purchaseId)}`, {
     method: "PUT",
     credentials: "include",
     headers: {

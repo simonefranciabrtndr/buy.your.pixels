@@ -127,13 +127,15 @@ const attachProfileFromAuth = (req) => {
   return verifyProfileToken(token);
 };
 
+const allowedOrigins = Array.from(new Set([...config.allowedOrigins, "https://api.yourpixels.online"]));
+
 export const createApp = () => {
   const app = express();
   app.disable("etag");
   app.use(helmet());
   app.use(
     cors({
-      origin: ["https://yourpixels.online", "https://www.yourpixels.online"],
+      origin: allowedOrigins,
       credentials: true,
     })
   );
@@ -462,6 +464,15 @@ export const createApp = () => {
       console.error("Failed to store purchase", error);
       res.status(500).send("Unable to store purchase");
     }
+  });
+
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "Not found" });
+  });
+
+  app.use((err, _req, res, _next) => {
+    console.error("Unhandled error", err);
+    res.status(500).json({ error: "Internal server error" });
   });
 
   return app;
