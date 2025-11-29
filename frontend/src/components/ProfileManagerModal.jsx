@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { registerProfile, loginProfile } from "../api/profile";
+import inferApiBaseUrl from "../api/baseUrl";
 import "./ProfileManagerModal.css";
 import { useCurrency } from "../context/CurrencyContext";
 
@@ -22,7 +23,7 @@ export default function ProfileManagerModal({
 }) {
   const { selectedCurrency, currency, rates, convertCurrency, formatCurrency } = useCurrency();
   const activeCurrency = selectedCurrency || currency || "EUR";
-  const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+  const apiBase = useMemo(() => inferApiBaseUrl(), []);
   const [form, setForm] = useState({
     email: "",
     username: "",

@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
+import inferApiBaseUrl from "../api/baseUrl";
 import "./AuthModal.css";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || "";
 
 export default function AuthModal({ onClose }) {
   const { login, register } = useAuth();
@@ -12,11 +11,7 @@ export default function AuthModal({ onClose }) {
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
 
-  const socialBase = useMemo(() => {
-    const trimmed = API_BASE_URL.trim();
-    if (!trimmed) return "";
-    return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
-  }, []);
+  const socialBase = useMemo(() => inferApiBaseUrl(), []);
 
   const startOAuth = (provider) => {
     const url = `${socialBase}/auth/${provider}`;

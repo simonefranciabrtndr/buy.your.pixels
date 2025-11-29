@@ -1,16 +1,12 @@
-# React + Vite
+# Buy Your Pixels – Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+- API base (all fetchers): `VITE_API_URL` (must include `/api`, e.g. `https://api.yourpixels.online/api`).
+- OAuth, auth, purchases, stats, and checkout rely on the normalized API base to avoid `/api/api` duplication.
+- CORS, cookies, and server responses are JSON-only; the backend exposes only `/api/*`.
 
-Currently, two official plugins are available:
+## DNS Dependency Warning
+The platform must stay mapped to these records; API failures or cookie issues can occur if DNS deviates:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- `@    A      76.76.21.21`
+- `www  CNAME  <vercel-dns-address>`
+- `api  CNAME  <railway-domain>`

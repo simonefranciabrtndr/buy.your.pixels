@@ -466,7 +466,7 @@ export const createApp = () => {
     }
   });
 
-  app.use("/api", (_req, res) => {
+  app.use((_req, res) => {
     res.status(404).json({ error: "Not found" });
   });
 
