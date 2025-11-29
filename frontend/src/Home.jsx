@@ -173,6 +173,7 @@ export default function Home() {
   const hoverPreviewCardRef = useRef(null);
   const hoverPreviewFetchRef = useRef(null);
   const hoverHideTimeoutRef = useRef(null);
+  const selectionEventSentRef = useRef(false);
   const [isLegalMenuOpen, setIsLegalMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDeveloperModalOpen, setIsDeveloperModalOpen] = useState(false);
@@ -259,6 +260,41 @@ export default function Home() {
     selectionPixels: currentSelectionPixels,
     isSelecting: Boolean(isSelecting || liveShape),
   });
+
+  useEffect(() => {
+    const hasArea = selectionShape?.area > 0;
+    if (hasArea && !selectionEventSentRef.current) {
+      const pixelCount = Math.round(selectionShape.area || 0);
+      const estimatedPrice = Number((pixelCount * PRICE_PER_PIXEL).toFixed(2));
+
+      if (typeof window !== "undefined" && typeof window.gtag === "function") {
+        window.gtag("event", "add_to_cart", {
+          value: estimatedPrice,
+          currency: "EUR",
+          items: [
+            {
+              item_id: "pixel_block",
+              item_name: "Pixel Block",
+              quantity: pixelCount,
+            },
+          ],
+        });
+      }
+
+      if (typeof window !== "undefined" && typeof window.fbq === "function") {
+        window.fbq("track", "AddToCart", {
+          value: estimatedPrice,
+          currency: "EUR",
+        });
+      }
+
+      selectionEventSentRef.current = true;
+    }
+
+    if (!hasArea) {
+      selectionEventSentRef.current = false;
+    }
+  }, [selectionShape]);
 
   const legalStats = useMemo(
     () => ({

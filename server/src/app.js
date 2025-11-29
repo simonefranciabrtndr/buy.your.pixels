@@ -16,7 +16,7 @@ import {
   updateOwnedPurchase,
   updatePurchaseModeration,
 } from "./purchaseStore.js";
-import { sendProfileWelcome } from "./notifications.js";
+import { sendPurchaseReceiptEmail } from "./notifications.js";
 import { createProfileRecord, findProfileByEmail, findProfileById } from "./profileStore.js";
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -303,11 +303,6 @@ export const createApp = () => {
         newsletter: subscribeNewsletter,
       });
       const token = createProfileSession(profile.id);
-      await sendProfileWelcome({
-        email: profile.email,
-        username: profile.username,
-        subscribeNewsletter: Boolean(subscribeNewsletter),
-      });
       const purchases = await listPurchasesByProfile(profile.id);
       res.json({ token, profile, purchases });
     } catch (error) {
@@ -411,6 +406,8 @@ export const createApp = () => {
       return res.status(400).send("Invalid payload");
     }
     try {
+      const profileId = attachProfileFromAuth(req);
+      req.profileId = profileId;
       const saved = await recordPurchase({
         id: payload.id,
         rect: payload.rect,
@@ -422,9 +419,28 @@ export const createApp = () => {
         imageTransform: payload.imageTransform,
         previewData: payload.previewData,
         nsfw: payload.nsfw,
-        profileId: attachProfileFromAuth(req),
+        profileId,
       });
+      const profileRecord = profileId ? await findProfileById(profileId) : null;
       res.status(201).json(saved);
+
+      // fire-and-forget email (does not block the response)
+      try {
+        if (req.profileId && saved?.area) {
+          const pixels = saved.area;
+          const amountEUR = Number(saved.price).toFixed(2);
+          const purchaseId = saved.id;
+
+          sendPurchaseReceiptEmail({
+            email: profileRecord?.profile?.email || "unknown",
+            pixels,
+            amountEUR,
+            purchaseId,
+          });
+        }
+      } catch (err) {
+        console.error("Email send error (non-blocking):", err);
+      }
     } catch (error) {
       console.error("Failed to store purchase", error);
       res.status(500).send("Unable to store purchase");

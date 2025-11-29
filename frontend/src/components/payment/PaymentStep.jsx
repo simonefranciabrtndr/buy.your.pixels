@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { createCheckoutSession, acknowledgePayment } from "../../api/checkout";
 import { loadStripeJs } from "./stripeLoader";
 import { useCurrency } from "../../context/CurrencyContext";
@@ -9,6 +10,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
   const { selectedCurrency, rates, convertCurrency, formatCurrency } = useCurrency();
   const activeCurrency = selectedCurrency || "EUR";
   const totalPriceEUR = Number(price || 0);
@@ -24,8 +26,21 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     const pixels = Math.round(area?.area || 0);
     return {
       pixelsFormatted: pixels.toLocaleString(),
+      pixelsRaw: pixels,
     };
   }, [area]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && typeof window.gtag === "function") {
+      window.gtag("event", "begin_checkout", {
+        value: totalPriceEUR,
+        currency: "EUR",
+      });
+    }
+    if (typeof window !== "undefined" && typeof window.fbq === "function") {
+      window.fbq("track", "InitiateCheckout");
+    }
+  }, [totalPriceEUR]);
 
   const reloadSession = useCallback(async () => {
     if (!price || !area) return;
@@ -131,6 +146,9 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
       if (stripeError) {
         setError(stripeError.message || "Stripe payment failed");
+        navigate("/failed", {
+          state: { reason: stripeError.message || "Stripe payment failed" },
+        });
         return;
       }
 
@@ -143,8 +161,26 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       }
 
       onSuccess?.({ provider: "stripe", paymentIntent });
+
+      setTimeout(() => {
+        const query = new URLSearchParams({
+          order: session.sessionId,
+          value: totalPriceEUR.toString(),
+          pixels: String(areaSummary.pixelsRaw || 0),
+        }).toString();
+        navigate(`/success?${query}`, {
+          state: {
+            orderId: session.sessionId,
+            value: totalPriceEUR,
+            pixels: areaSummary.pixelsRaw || 0,
+          },
+        });
+      }, 600);
     } catch (err) {
       setError(err.message || "Unexpected Stripe error");
+      navigate("/failed", {
+        state: { reason: err.message || "Unexpected Stripe error" },
+      });
     } finally {
       setStripeProcessing(false);
     }
