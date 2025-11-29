@@ -7,7 +7,6 @@ import { v4 as uuid } from "uuid";
 import crypto from "crypto";
 import Stripe from "stripe";
 import { config } from "./config.js";
-import { capturePayPalOrder, createPayPalOrder } from "./paypal.js";
 import { touchPresence, getPresenceStats } from "./presenceStore.js";
 import {
   listPurchases,
@@ -196,29 +195,6 @@ export const createApp = () => {
         }
       }
 
-      try {
-        const paypalOrder = await createPayPalOrder({
-          amount: amountInMinor,
-          currency,
-          referenceId: sessionId,
-          description: "Buy Your Pixels order",
-        });
-
-        if (paypalOrder) {
-          response.paypal = {
-            orderId: paypalOrder.orderId,
-            clientId: config.paypal.clientId,
-          };
-          response.availableMethods.push("paypal");
-        }
-      } catch (paypalErr) {
-        console.error("PayPal order creation failed", paypalErr);
-        providerErrors.push({
-          provider: "paypal",
-          message: paypalErr?.message || "PayPal is temporarily unavailable",
-        });
-      }
-
       if (!response.availableMethods.length) {
         return res.status(503).json({
           error: "No payment methods available",
@@ -234,7 +210,6 @@ export const createApp = () => {
         metadata,
         providers: {
           stripe: response.stripe?.paymentIntentId || null,
-          paypal: response.paypal?.orderId || null,
         },
         status: "pending",
       });
@@ -243,16 +218,6 @@ export const createApp = () => {
     } catch (err) {
       console.error("Failed to create checkout session", err);
       res.status(500).send("Unable to create checkout session");
-    }
-  });
-
-  app.post("/api/paypal/orders/:orderId/capture", async (req, res) => {
-    try {
-      const capture = await capturePayPalOrder(req.params.orderId);
-      res.json(capture);
-    } catch (err) {
-      console.error("PayPal capture failed", err);
-      res.status(500).send("Unable to capture PayPal order");
     }
   });
 

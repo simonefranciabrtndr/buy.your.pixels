@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { createCheckoutSession, capturePayPalOrder, acknowledgePayment } from "../../api/checkout";
+import { createCheckoutSession, acknowledgePayment } from "../../api/checkout";
 import { loadStripeJs } from "./stripeLoader";
-import { loadPayPalSdk } from "./paypalLoader";
 import { useCurrency } from "../../context/CurrencyContext";
 
 const PAYMENT_CURRENCY = "EUR";
@@ -21,9 +20,6 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [stripeProcessing, setStripeProcessing] = useState(false);
   const paymentElementRef = useRef(null);
 
-  const paypalContainerRef = useRef(null);
-  const paypalRenderedRef = useRef(false);
-
   const areaSummary = useMemo(() => {
     const pixels = Math.round(area?.area || 0);
     return {
@@ -36,7 +32,6 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     setStatus("loading");
     setError(null);
     setStripeApi({ stripe: null, elements: null, paymentElement: null });
-    paypalRenderedRef.current = false;
     try {
       const response = await createCheckoutSession({
         area,
@@ -158,54 +153,6 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const showStripe = Boolean(stripeInfo?.clientSecret && stripeInfo?.publishableKey);
   const stripeReady = Boolean(showStripe && stripeApi.paymentElement);
 
-  const paypalInfo = session?.paypal;
-
-  useEffect(() => {
-    if (!paypalInfo?.clientId || !paypalContainerRef.current || paypalRenderedRef.current) return undefined;
-    let active = true;
-
-    loadPayPalSdk(paypalInfo.clientId, PAYMENT_CURRENCY)
-      .then((paypal) => {
-        if (!active || !paypal?.Buttons) return;
-        paypal.Buttons({
-          style: { layout: "vertical", color: "gold", shape: "rect" },
-          createOrder: () => paypalInfo.orderId,
-          onApprove: async (data) => {
-            try {
-              const capture = await capturePayPalOrder(data.orderID || paypalInfo.orderId);
-              if (session?.sessionId) {
-                await acknowledgePayment(session.sessionId, "paypal", { orderId: data.orderID || paypalInfo.orderId });
-              }
-              onSuccess?.({ provider: "paypal", capture });
-            } catch (err) {
-              console.error("PayPal capture error", err);
-              setError(err.message || "Unable to finalize the PayPal payment");
-            }
-          },
-          onError: (err) => {
-            console.error("PayPal error", err);
-            setError(err.message || "PayPal is not available right now.");
-          },
-        }).render(paypalContainerRef.current);
-        paypalRenderedRef.current = true;
-      })
-      .catch((err) => {
-        console.error("PayPal SDK error", err);
-        setError(err.message || "Unable to load the PayPal SDK");
-      });
-
-    const container = paypalContainerRef.current;
-    return () => {
-      active = false;
-      if (container) {
-        container.innerHTML = "";
-      }
-      paypalRenderedRef.current = false;
-    };
-  }, [paypalInfo?.clientId, paypalInfo?.orderId, session?.sessionId, onSuccess, reloadSession]);
-
-  const showPayPal = Boolean(paypalInfo?.clientId);
-
   return (
     <div className="payment-step">
       <h3>Complete your payment</h3>
@@ -270,14 +217,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
             </div>
           )}
 
-          {showPayPal && (
-            <div className="payment-provider-card">
-              <h4>PayPal</h4>
-              <div ref={paypalContainerRef} style={{ minHeight: "60px" }} />
-            </div>
-          )}
-
-          {!showStripe && !showPayPal && (
+          {!showStripe && (
             <div className="payment-error">No payment methods are available right now.</div>
           )}
 

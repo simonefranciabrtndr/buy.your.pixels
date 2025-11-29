@@ -42,11 +42,6 @@ export const createCheckoutSession = async ({ area, price, currency = "eur", met
   });
 };
 
-export const capturePayPalOrder = async (orderId) =>
-  jsonFetch(`/paypal/orders/${encodeURIComponent(orderId)}/capture`, {
-    method: "POST",
-  });
-
 export const acknowledgePayment = async (sessionId, provider, payload = {}) =>
   jsonFetch(`/checkout/session/${encodeURIComponent(sessionId)}/acknowledge`, {
     method: "POST",

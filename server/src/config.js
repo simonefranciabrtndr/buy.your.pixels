@@ -23,11 +23,6 @@ export const config = {
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
-  paypal: {
-    clientId: process.env.PAYPAL_CLIENT_ID || "",
-    clientSecret: process.env.PAYPAL_CLIENT_SECRET || "",
-    environment: process.env.PAYPAL_ENV === "live" ? "live" : "sandbox",
-  },
   developer: {
     password: process.env.DEVELOPER_PASSWORD || "",
   },
