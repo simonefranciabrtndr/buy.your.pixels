@@ -18,7 +18,10 @@ const getPayPalClient = () => {
 
 export const createPayPalOrder = async ({ amount, currency, referenceId, description }) => {
   const client = getPayPalClient();
-  if (!client) return null;
+  if (!client) {
+    console.error("[PayPal] Missing PayPal client — check PAYPAL_CLIENT_ID / PAYPAL_CLIENT_SECRET / PAYPAL_ENV");
+    return null;
+  }
 
   const request = new checkoutNodeJssdk.orders.OrdersCreateRequest();
   request.prefer("return=representation");
@@ -35,11 +38,20 @@ export const createPayPalOrder = async ({ amount, currency, referenceId, descrip
       },
     ],
   });
-  const order = await client.execute(request);
-  return {
-    orderId: order.result.id,
-    links: order.result.links,
-  };
+  try {
+    console.log("[PayPal] Creating order:", {
+      amount, currency, referenceId, description
+    });
+    const order = await client.execute(request);
+    console.log("[PayPal] Order created successfully:", order.result);
+    return {
+      orderId: order.result.id,
+      links: order.result.links,
+    };
+  } catch (err) {
+    console.error("[PayPal] Order creation failed:", err);
+    return null;
+  }
 };
 
 export const capturePayPalOrder = async (orderId) => {
