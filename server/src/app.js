@@ -20,6 +20,7 @@ import { sendPurchaseReceiptEmail, sendTestEmail } from "./notifications.js";
 import { createProfileRecord, findProfileByEmail, findProfileById } from "./profileStore.js";
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
+import { getDnsDebug } from "./utils/dnsCheck.js";
 
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: "2024-06-20" }) : null;
 
@@ -162,6 +163,20 @@ export const createApp = () => {
     } catch (err) {
       console.error("❌ Test email failed:", err);
       return res.status(500).json({ error: "Failed to send test email" });
+    }
+  });
+
+  app.get("/api/debug/dns", async (_req, res) => {
+    try {
+      const result = await getDnsDebug("yourpixels.online");
+      console.log("[dns-debug]", result);
+      if (result.status === "error") {
+        return res.status(500).json(result);
+      }
+      return res.json(result);
+    } catch (err) {
+      console.error("[dns-debug] unexpected failure", err);
+      return res.status(500).json({ status: "error", message: "DNS lookup failed", details: err.message });
     }
   });
 
