@@ -68,3 +68,68 @@ export async function sendPurchaseReceiptEmail({ email, pixels, amountEUR, purch
     console.error("❌ Failed to send purchase email:", err);
   }
 }
+
+export async function sendTestEmail(to) {
+  const html = `
+  <style>
+    .card {
+      width: 100%;
+      max-width: 460px;
+      margin: 40px auto;
+      padding: 32px;
+      background: rgba(20, 20, 28, 0.55);
+      backdrop-filter: blur(18px);
+      border-radius: 24px;
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 0 35px rgba(244,184,106,0.28);
+      font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #f7f7f7;
+    }
+    h1 {
+      font-size: 26px;
+      margin-bottom: 12px;
+      color: #ffffff;
+      font-weight: 600;
+    }
+    p {
+      font-size: 16px;
+      line-height: 1.5;
+      color: #d4d4d4;
+    }
+    .footer {
+      margin-top: 28px;
+      font-size: 12px;
+      opacity: 0.6;
+      text-align: center;
+    }
+  </style>
+
+  <div class="card">
+    <h1>✨ Test Email — Buy Your Pixels</h1>
+    <p>
+      This is a <strong>test message</strong> confirming that your email service is correctly configured.
+    </p>
+    <p>
+      Everything looks great — your Resend transactional emails will match the
+      exact visual style of your pixel purchase confirmations.
+    </p>
+    <div class="footer">yourpixels.online</div>
+  </div>
+  `;
+
+  try {
+    const { data, error } = await resend.emails.send({
+      from: "Buy Your Pixels <noreply@yourpixels.online>",
+      to,
+      subject: "Test Email — Buy Your Pixels",
+      html,
+    });
+
+    if (error) throw error;
+    console.log("📨 Test email sent:", data?.id);
+    return data;
+  } catch (err) {
+    console.error("❌ Error sending test email:", err);
+    throw err;
+  }
+}

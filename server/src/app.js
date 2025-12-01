@@ -16,7 +16,7 @@ import {
   updateOwnedPurchase,
   updatePurchaseModeration,
 } from "./purchaseStore.js";
-import { sendPurchaseReceiptEmail } from "./notifications.js";
+import { sendPurchaseReceiptEmail, sendTestEmail } from "./notifications.js";
 import { createProfileRecord, findProfileByEmail, findProfileById } from "./profileStore.js";
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -148,6 +148,22 @@ export const createApp = () => {
   });
 
   app.use("/api/auth", authRouter);
+
+  app.get("/api/test-email", async (req, res) => {
+    try {
+      const to = process.env.TEST_EMAIL_TO;
+      if (!to) {
+        return res.status(500).json({ error: "TEST_EMAIL_TO env variable missing" });
+      }
+
+      await sendTestEmail(to);
+
+      return res.json({ success: true, message: "Test email sent to " + to });
+    } catch (err) {
+      console.error("❌ Test email failed:", err);
+      return res.status(500).json({ error: "Failed to send test email" });
+    }
+  });
 
   app.post("/api/checkout/session", async (req, res) => {
     const { area, price, currency = "eur", metadata = {} } = req.body || {};
