@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo } from "react";
-import { useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import "./Success.css";
 
 export default function SuccessPage() {
   const [params] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const stateData = location.state || {};
   const orderId = params.get("order");
   const queryValue = params.get("value");
@@ -65,33 +66,45 @@ export default function SuccessPage() {
     }
   }, [totalEUR, pixelCount, transactionId]);
 
+  const orderRef = transactionId || params.get("orderRef") || "#ThankYou";
+
   return (
-    <div className="success-wrapper">
-      <div className="success-card glass-popup">
-        <h1>Payment Successful 🎉</h1>
-        <p>Your pixels have been successfully purchased.</p>
+    <div className="success-page">
+      <div className="success-overlay" />
+      <div className="success-card">
+        <div className="success-icon">
+          <span>✓</span>
+        </div>
+        <h1 className="success-title">Payment successful</h1>
+        <p className="success-subtitle">Your pixels are now live on the Wall.</p>
 
-        {transactionId && (
-          <p className="order-ref">
-            Order reference: <strong>{transactionId}</strong>
-          </p>
-        )}
+        <div className="success-summary">
+          <div className="summary-item">
+            <div className="summary-label">Order ref</div>
+            <div className="summary-value">{orderRef}</div>
+          </div>
+          {Number.isFinite(totalEUR) && (
+            <div className="summary-item">
+              <div className="summary-label">Total paid</div>
+              <div className="summary-value">€{totalEUR.toFixed(2)}</div>
+            </div>
+          )}
+          {Number.isFinite(pixelCount) && (
+            <div className="summary-item">
+              <div className="summary-label">Pixels</div>
+              <div className="summary-value">{Math.round(pixelCount).toLocaleString()}</div>
+            </div>
+          )}
+        </div>
 
-        {Number.isFinite(totalEUR) && (
-          <p className="order-ref">
-            Total paid: <strong>€{totalEUR.toFixed(2)}</strong>
-          </p>
-        )}
-
-        {Number.isFinite(pixelCount) && (
-          <p className="order-ref">
-            Pixels purchased: <strong>{Math.round(pixelCount).toLocaleString()}</strong>
-          </p>
-        )}
-
-        <a href="/" className="btn-primary">
-          Back to homepage
-        </a>
+        <div className="success-actions">
+          <a className="btn-primary" href="https://yourpixels.online">
+            View your pixels
+          </a>
+          <button className="btn-secondary" onClick={() => navigate("/", { replace: true })}>
+            Back to home
+          </button>
+        </div>
       </div>
     </div>
   );

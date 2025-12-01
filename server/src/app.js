@@ -230,9 +230,16 @@ export const createApp = () => {
         status: "pending",
       });
 
+      console.log("[checkout] Created checkout session", {
+        sessionId,
+        amount: amountInMinor,
+        currency: currency.toLowerCase(),
+        providers: response.availableMethods,
+      });
+
       res.json(response);
     } catch (err) {
-      console.error("Failed to create checkout session", err);
+      console.error("[checkout] Failed to create checkout session", err);
       res.status(500).send("Unable to create checkout session");
     }
   });
@@ -248,6 +255,7 @@ export const createApp = () => {
     session.provider = provider;
     session.confirmation = req.body?.payload;
     sessions.set(sessionId, session);
+    console.log("[checkout] Acknowledged payment session", { sessionId, provider });
     res.json({ status: "acknowledged" });
   });
 
@@ -438,25 +446,32 @@ export const createApp = () => {
         profileId,
       });
       const profileRecord = profileId ? await findProfileById(profileId) : null;
+      console.log("[purchases] Recorded purchase", {
+        id: saved?.id,
+        pixels: saved?.area?.area || saved?.area || 0,
+        price: saved?.price,
+        profileId: saved?.profileId || profileId || null,
+      });
       res.status(201).json(saved);
 
       // fire-and-forget email (does not block the response)
-      try {
-        if (req.profileId && saved?.area) {
-          const pixels = saved.area;
-          const amountEUR = Number(saved.price).toFixed(2);
-          const purchaseId = saved.id;
-
-          sendPurchaseReceiptEmail({
-            email: profileRecord?.profile?.email || "unknown",
-            pixels,
-            amountEUR,
-            purchaseId,
-          });
+      const profileForEmail = profileRecord?.profile || null;
+      Promise.resolve().then(async () => {
+        try {
+          if (profileForEmail && saved?.area) {
+            await sendPurchaseReceiptEmail({
+              email: profileForEmail.email || "unknown",
+              profile: profileForEmail,
+              purchase: saved,
+              pixels: saved.area,
+              amountEUR: saved.price,
+              purchaseId: saved.id,
+            });
+          }
+        } catch (err) {
+          console.error("[purchases] Failed to send purchase receipt", err);
         }
-      } catch (err) {
-        console.error("Email send error (non-blocking):", err);
-      }
+      });
     } catch (error) {
       console.error("Failed to store purchase", error);
       res.status(500).send("Unable to store purchase");

@@ -1,51 +1,104 @@
-.failed-wrapper {
-  width: 100%;
+.failed-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
-  background: rgba(0,0,0,0.35);
-  backdrop-filter: blur(8px);
+  position: relative;
+  padding: 32px;
+  background: radial-gradient(circle at 20% 20%, rgba(255, 107, 107, 0.18), rgba(5, 8, 22, 0.95)), #050816;
+  color: #f6f8ff;
+}
+
+.failed-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+  pointer-events: none;
 }
 
 .failed-card {
-  background: rgba(20,22,33,0.55);
-  border: 1px solid rgba(255,255,255,0.12);
-  backdrop-filter: blur(16px);
-  border-radius: 22px;
-  padding: 40px;
-  max-width: 480px;
+  position: relative;
+  max-width: 520px;
   width: 100%;
+  padding: 28px 24px 24px;
+  border-radius: 22px;
+  background: radial-gradient(circle at top, rgba(255,255,255,0.05), rgba(12, 8, 12, 0.94));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(26px);
   text-align: center;
-  box-shadow: 0 0 35px rgba(0,0,0,0.45);
-  animation: popupFadeIn 0.4s ease-out;
+  z-index: 1;
+  animation: failedFadeIn 0.45s ease-out;
 }
 
-@keyframes popupFadeIn {
-  from { opacity: 0; transform: scale(0.92); }
-  to   { opacity: 1; transform: scale(1); }
+@keyframes failedFadeIn {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.failed-icon {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6b6b, #d83f3f);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  font-weight: 700;
+  color: #ffffff;
+  box-shadow: 0 0 25px rgba(216, 63, 63, 0.35), 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+.failed-title {
+  margin: 6px 0 4px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.failed-subtitle {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: rgba(235, 240, 255, 0.78);
+}
+
+.failed-reason {
+  margin: 0;
+  font-size: 14px;
+  color: rgba(255, 220, 220, 0.88);
 }
 
 .failed-actions {
-  margin-top: 24px;
+  margin-top: 20px;
   display: flex;
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
 }
 
+.failed-hint {
+  margin-top: 14px;
+  font-size: 13px;
+  color: rgba(235, 240, 255, 0.68);
+}
+
 .btn-primary {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 12px 20px;
   border-radius: 12px;
   background: linear-gradient(135deg,#ff6b6b,#d83f3f);
   color: #fff;
-  font-weight: 600;
+  font-weight: 700;
   text-decoration: none;
   border: none;
   cursor: pointer;
+  min-width: 150px;
   transition: 0.2s;
+  box-shadow: 0 6px 18px rgba(216, 63, 63, 0.35);
 }
 
 .btn-primary:hover {
@@ -53,17 +106,21 @@
 }
 
 .btn-secondary {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 12px 20px;
   border-radius: 12px;
-  background: rgba(255,255,255,0.1);
+  min-width: 150px;
+  background: rgba(255,255,255,0.06);
   color: #fff;
   font-weight: 600;
   text-decoration: none;
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.16);
+  cursor: pointer;
   transition: 0.2s;
 }
 
 .btn-secondary:hover {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.12);
 }

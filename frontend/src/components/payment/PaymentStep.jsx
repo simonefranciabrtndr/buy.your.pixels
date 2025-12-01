@@ -145,6 +145,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       });
 
       if (stripeError) {
+        console.error("[checkout] Stripe payment failed", stripeError);
         setError(stripeError.message || "Stripe payment failed");
         navigate("/failed", {
           state: { reason: stripeError.message || "Stripe payment failed" },
@@ -159,6 +160,12 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       } catch (ackErr) {
         console.warn("Unable to acknowledge payment on the server", ackErr);
       }
+
+      console.log("[checkout] Stripe payment confirmed", {
+        amount: totalPriceEUR,
+        currency: PAYMENT_CURRENCY,
+        pixels: areaSummary?.pixelsFormatted,
+      });
 
       onSuccess?.({ provider: "stripe", paymentIntent });
 
@@ -177,6 +184,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
         });
       }, 600);
     } catch (err) {
+      console.error("[checkout] Stripe payment failed", err);
       setError(err.message || "Unexpected Stripe error");
       navigate("/failed", {
         state: { reason: err.message || "Unexpected Stripe error" },
