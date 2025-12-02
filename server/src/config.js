@@ -23,6 +23,12 @@ export const config = {
     publishableKey: process.env.STRIPE_PUBLISHABLE_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
+  meta: {
+    pixelId: process.env.META_PIXEL_ID,
+    accessToken: process.env.META_ACCESS_TOKEN,
+    testEventCode: process.env.META_TEST_EVENT_CODE,
+    apiBaseUrl: process.env.META_CONVERSIONS_API_URL || "https://graph.facebook.com/v18.0",
+  },
   developer: {
     password: process.env.DEVELOPER_PASSWORD || "",
   },

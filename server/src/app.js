@@ -16,11 +16,13 @@ import {
   updateOwnedPurchase,
   updatePurchaseModeration,
 } from "./purchaseStore.js";
-import { sendPurchaseReceiptEmail, sendTestEmail } from "./notifications.js";
+import { sendPurchaseReceiptEmail, sendPurchaseFailureEmail, sendSupportAlertEmail, sendTestEmail } from "./notifications.js";
 import { createProfileRecord, findProfileByEmail, findProfileById } from "./profileStore.js";
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
 import { resolveDomainDiagnostics } from "./utils/dnsCheck.js";
+import { createRateLimiter } from "./middleware/rateLimit.js";
+import { sendMetaPurchaseEvent } from "./analytics/meta.js";
 
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: "2024-06-20" }) : null;
 
@@ -129,6 +131,30 @@ const attachProfileFromAuth = (req) => {
 
 const allowedOrigins = Array.from(new Set([...config.allowedOrigins, "https://api.yourpixels.online"]));
 
+const checkoutRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+  keyPrefix: "checkout",
+});
+
+const purchaseRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+  keyPrefix: "purchase",
+});
+
+const emailTestRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: "test-email",
+});
+
+const dnsDebugRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: "dns-debug",
+});
+
 export const createApp = () => {
   const app = express();
   app.disable("etag");
@@ -150,7 +176,7 @@ export const createApp = () => {
 
   app.use("/api/auth", authRouter);
 
-  app.get("/api/test-email", async (req, res) => {
+  app.get("/api/test-email", emailTestRateLimit, async (req, res) => {
     try {
       const to = process.env.TEST_EMAIL_TO;
       if (!to) {
@@ -166,7 +192,7 @@ export const createApp = () => {
     }
   });
 
-  app.get("/api/debug/dns", async (_req, res) => {
+  app.get("/api/debug/dns", dnsDebugRateLimit, async (_req, res) => {
     try {
       const result = await resolveDomainDiagnostics("yourpixels.online");
       console.log("[dns-debug]", result);
@@ -184,7 +210,7 @@ export const createApp = () => {
     }
   });
 
-  app.post("/api/checkout/session", async (req, res) => {
+  app.post("/api/checkout/session", checkoutRateLimit, async (req, res) => {
     const { area, price, currency = "eur", metadata = {} } = req.body || {};
     const normalizedPrice = Number(price);
     if (!area || !Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
@@ -259,6 +285,24 @@ export const createApp = () => {
       res.json(response);
     } catch (err) {
       console.error("[checkout] Failed to create checkout session", err);
+      try {
+        await sendSupportAlertEmail({
+          type: "checkout_error",
+          path: req.path,
+          userId: req.user?.id,
+          email: req.user?.email,
+          errorMessage: err.message,
+          stack: err.stack,
+          additionalContext: {
+            body: { price: req.body?.price, currency: req.body?.currency, area: req.body?.area ? "provided" : "missing" },
+            query: req.query,
+            ip: req.ip,
+            userAgent: req.get("user-agent"),
+          },
+        });
+      } catch (alertErr) {
+        console.error("[checkout] support alert failed", alertErr);
+      }
       res.status(500).send("Unable to create checkout session");
     }
   });
@@ -440,7 +484,57 @@ export const createApp = () => {
     }
   });
 
-  app.post("/api/purchases", async (req, res) => {
+  app.post("/api/purchases/failed", async (req, res) => {
+    const body = req.body || {};
+    const pixels = Number(body.pixels) || 0;
+    const totalAmount = Number(body.totalAmount) || 0;
+    const currency = body.currency || "EUR";
+    const errorCode = body.errorCode || null;
+    const errorMessage = body.errorMessage || null;
+    const stripePaymentIntentId = body.stripePaymentIntentId || null;
+
+    const profileId = attachProfileFromAuth(req);
+    let profileRecord = null;
+    if (profileId) {
+      try {
+        profileRecord = await findProfileById(profileId);
+      } catch (err) {
+        console.error("[checkout] unable to load profile for failure email", err);
+      }
+    }
+
+    console.log("[checkout] purchase failed event", {
+      userId: profileId || null,
+      email: profileRecord?.profile?.email,
+      pixels,
+      totalAmount,
+      currency,
+      errorCode,
+      errorMessage,
+      stripePaymentIntentId,
+    });
+
+    if (profileRecord?.profile?.email) {
+      Promise.resolve().then(async () => {
+        try {
+          await sendPurchaseFailureEmail(profileRecord.profile, {
+            attemptedAmount: totalAmount,
+            currency,
+            pixelCount: pixels,
+            errorCode,
+            errorMessage,
+            failedAt: new Date(),
+          });
+        } catch (err) {
+          console.error("[checkout] purchase failure email error", { error: err.message });
+        }
+      });
+    }
+
+    return res.json({ status: "ok" });
+  });
+
+  app.post("/api/purchases", purchaseRateLimit, async (req, res) => {
     if (!config.databaseUrl) {
       return res.status(503).send("Database not configured");
     }
@@ -487,12 +581,41 @@ export const createApp = () => {
               purchaseId: saved.id,
             });
           }
+          const eventId = saved?.id ? `YP-${String(saved.id).slice(0, 8)}` : undefined;
+          await sendMetaPurchaseEvent({
+            value: Number(saved?.price) || 0,
+            currency: saved?.currency || "EUR",
+            eventId,
+            clientIp: req.ip,
+            userAgent: req.get("user-agent"),
+            sourceUrl: `${config.baseUrl || "https://yourpixels.online"}/success`,
+          });
         } catch (err) {
           console.error("[purchases] Failed to send purchase receipt", err);
         }
       });
     } catch (error) {
       console.error("Failed to store purchase", error);
+      Promise.resolve().then(async () => {
+        try {
+          await sendSupportAlertEmail({
+            type: "purchase_persist_error",
+            path: req.path,
+            userId: req.profileId,
+            email: req.body?.email,
+            orderRef: req.body?.id,
+            errorMessage: error.message,
+            stack: error.stack,
+            additionalContext: {
+              pixels: req.body?.area,
+              totalAmount: req.body?.price,
+              currency: req.body?.currency || "EUR",
+            },
+          });
+        } catch (alertErr) {
+          console.error("[purchases] support alert failed", alertErr);
+        }
+      });
       res.status(500).send("Unable to store purchase");
     }
   });

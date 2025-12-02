@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { config } from "./config.js";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -9,48 +10,33 @@ const fallbackNumber = (value, fallback = 0) => {
 
 const formatAmount = (value) => fallbackNumber(value, 0).toFixed(2);
 
-// HTML email template (liquid glass style)
-function renderReceiptEmail({ orderRef, purchaseDate, pixels, amountEur, username }) {
+function renderBaseEmailLayout({
+  title,
+  subtitle,
+  contentHtml,
+  primaryCtaLabel,
+  primaryCtaHref,
+  footerNote,
+}) {
+  const buttonHtml =
+    primaryCtaLabel && primaryCtaHref
+      ? `<div style="text-align:center;margin:20px 0;">
+          <a href="${primaryCtaHref}" style="display:inline-block;padding:12px 20px;border-radius:12px;background:linear-gradient(135deg,#4f9dff,#1e69e3);color:#fff;font-weight:700;text-decoration:none;box-shadow:0 6px 18px rgba(30,105,227,0.4);">${primaryCtaLabel}</a>
+        </div>`
+      : "";
+
   return `
   <div style="margin:0;padding:24px;background:#050816;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',Inter,sans-serif;color:#f5f7fb;">
     <div style="max-width:520px;margin:0 auto;">
-      <div style="text-align:center;margin-bottom:16px;">
-        <div style="display:inline-flex;align-items:center;justify-content:center;width:74px;height:74px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#1ee0a1,#0f9ad8);box-shadow:0 0 25px rgba(15,154,216,0.35),0 10px 30px rgba(0,0,0,0.45);color:#fff;font-size:32px;font-weight:700;">✓</div>
-        <div style="margin-top:14px;font-size:22px;font-weight:600;letter-spacing:0.2px;">Buy Your Pixels</div>
-      </div>
-
-      <div style="background:rgba(12,18,32,0.95);border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;box-shadow:0 18px 55px rgba(0,0,0,0.75);backdrop-filter:blur(26px);">
-        <div style="text-align:center;margin-bottom:18px;">
-          <div style="font-size:20px;font-weight:700;color:#ffffff;margin-bottom:6px;">Payment successful</div>
-          <div style="font-size:15px;color:rgba(235,240,255,0.78);">Your pixels are now live on the Wall.</div>
-        </div>
-        <div style="font-size:14px;color:rgba(235,240,255,0.8);text-align:center;margin-bottom:14px;">Hi ${username || "there"}, thanks for supporting Buy Your Pixels.</div>
-
-        <div style="display:flex;flex-wrap:wrap;gap:12px;margin:16px 0;padding:14px 12px;background:rgba(255,255,255,0.03);border-radius:12px;border:1px solid rgba(255,255,255,0.06);">
-          <div style="flex:1;min-width:180px;">
-            <div style="font-size:12px;letter-spacing:0.3px;color:rgba(230,235,255,0.6);text-transform:uppercase;margin-bottom:4px;">Order Ref</div>
-            <div style="font-size:16px;font-weight:600;color:#ffffff;">${orderRef}</div>
+      <div style="background:radial-gradient(circle at top, rgba(255,255,255,0.06), rgba(5,8,22,0.96));border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:24px;box-shadow:0 18px 55px rgba(0,0,0,0.75);backdrop-filter:blur(26px);">
+        <div style="border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:18px 16px;background:rgba(255,255,255,0.02);">
+          <div style="font-size:22px;font-weight:700;color:#ffffff;margin-bottom:6px;">${title || "yourpixels.online"}</div>
+          <div style="font-size:15px;color:rgba(235,240,255,0.78);margin-bottom:14px;">${subtitle || ""}</div>
+          <div style="font-size:14px;color:rgba(235,240,255,0.85);line-height:1.6;">${contentHtml || ""}</div>
+          ${buttonHtml}
+          <div style="font-size:12px;color:rgba(235,240,255,0.6);text-align:center;margin-top:14px;">
+            ${footerNote || "You received this email because you interacted with yourpixels.online."}
           </div>
-          <div style="flex:1;min-width:180px;">
-            <div style="font-size:12px;letter-spacing:0.3px;color:rgba(230,235,255,0.6);text-transform:uppercase;margin-bottom:4px;">Date</div>
-            <div style="font-size:16px;font-weight:600;color:#ffffff;">${purchaseDate}</div>
-          </div>
-          <div style="flex:1;min-width:180px;">
-            <div style="font-size:12px;letter-spacing:0.3px;color:rgba(230,235,255,0.6);text-transform:uppercase;margin-bottom:4px;">Pixels</div>
-            <div style="font-size:16px;font-weight:600;color:#ffffff;">${pixels.toLocaleString("en-US")}</div>
-          </div>
-          <div style="flex:1;min-width:180px;">
-            <div style="font-size:12px;letter-spacing:0.3px;color:rgba(230,235,255,0.6);text-transform:uppercase;margin-bottom:4px;">Total</div>
-            <div style="font-size:16px;font-weight:700;color:#1ee0a1;">€ ${formatAmount(amountEur)}</div>
-          </div>
-        </div>
-
-        <div style="text-align:center;margin:20px 0;">
-          <a href="https://yourpixels.online/" style="display:inline-block;padding:12px 20px;border-radius:12px;background:linear-gradient(135deg,#4f9dff,#1e69e3);color:#fff;font-weight:700;text-decoration:none;box-shadow:0 6px 18px rgba(30,105,227,0.4);">View your pixels</a>
-        </div>
-
-        <div style="font-size:13px;color:rgba(235,240,255,0.7);text-align:center;margin-top:10px;">
-          If you didn’t make this purchase, please contact us at <a href="mailto:support@yourpixels.online" style="color:#7bc6ff;text-decoration:none;">support@yourpixels.online</a>.
         </div>
       </div>
     </div>
@@ -64,8 +50,14 @@ export async function sendPurchaseReceiptEmail({ email, pixels, amountEUR, purch
     return;
   }
 
+  const appBaseUrl = config.baseUrl || process.env.APP_BASE_URL || "https://yourpixels.online";
+
   try {
-    const recipientEmail = email || profile?.email || purchase?.email || "unknown";
+    const recipientEmail = email || profile?.email || purchase?.email;
+    if (!recipientEmail) {
+      console.warn("[mail] purchase receipt skipped; no recipient email");
+      return;
+    }
     const username = profile?.username || purchase?.username || "there";
     const pixelCount =
       fallbackNumber(purchase?.area?.area, null) ??
@@ -82,20 +74,26 @@ export async function sendPurchaseReceiptEmail({ email, pixels, amountEUR, purch
       minute: "2-digit",
     });
 
-    console.log("[notifications] Sending purchase receipt email", {
-      to: recipientEmail,
-      orderRef,
-      pixels: pixelCount,
-      amountEur,
-      username,
-    });
+    const contentHtml = `
+      <p style="margin:0 0 12px;">Hi ${username},</p>
+      <p style="margin:0 0 14px;">Thank you for buying your digital space on yourpixels.online. Your pixels are now visible on the grid.</p>
+      <div style="margin:12px 0;padding:12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-weight:600;"><span>Order reference</span><span>${orderRef}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span>Purchase date</span><span>${purchaseDate}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span>Pixels purchased</span><span>${pixelCount.toLocaleString("en-US")}</span></div>
+        <div style="display:flex;justify-content:space-between;"><span>Total amount</span><span>€${amountEur}</span></div>
+      </div>
+      <p style="margin:12px 0 0;">Feel free to update your placement anytime.</p>
+    `;
 
-    const html = renderReceiptEmail({
-      orderRef,
-      purchaseDate,
-      pixels: pixelCount,
-      amountEur,
-      username,
+    const html = renderBaseEmailLayout({
+      title: "Your pixel purchase is confirmed ✨",
+      subtitle: "Thank you for buying your digital space on yourpixels.online.",
+      contentHtml,
+      primaryCtaLabel: "View your pixels",
+      primaryCtaHref: appBaseUrl,
+      footerNote:
+        "If you didn’t authorize this purchase, please reply to this email or contact support at support@yourpixels.online.",
     });
 
     await resend.emails.send({
@@ -105,9 +103,122 @@ export async function sendPurchaseReceiptEmail({ email, pixels, amountEUR, purch
       html,
     });
 
-    console.log("[notifications] Purchase receipt email sent", { to: recipientEmail, orderRef });
+    console.log("[mail] purchase receipt sent", { email: recipientEmail, orderRef });
   } catch (err) {
-    console.error("[notifications] Failed to send purchase receipt email", err);
+    console.error("[mail] purchase receipt failed", { email, orderRef: purchaseId, error: err.message });
+  }
+}
+
+export async function sendPurchaseFailureEmail(profileOrUser, failureData = {}) {
+  const appBaseUrl = config.baseUrl || process.env.APP_BASE_URL || "https://yourpixels.online";
+  const recipientEmail = profileOrUser?.email;
+  if (!recipientEmail) {
+    console.warn("[mail] purchase failure email skipped; no recipient email");
+    return;
+  }
+  const attemptedAmount = formatAmount(failureData.attemptedAmount);
+  const pixelCount = fallbackNumber(failureData.pixelCount, 0);
+  const errorCode = failureData.errorCode || "N/A";
+  const errorMessage = failureData.errorMessage || "Unknown issue";
+
+  const contentHtml = `
+    <p style="margin:0 0 12px;">Hi ${profileOrUser?.username || "there"},</p>
+    <p style="margin:0 0 12px;">We couldn’t complete your pixel purchase. No funds have been captured for this attempt.</p>
+    <div style="margin:12px 0;padding:12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);">
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span>Attempted amount</span><span>€${attemptedAmount}</span></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:6px;"><span>Pixels</span><span>${pixelCount.toLocaleString("en-US")}</span></div>
+      <div style="display:flex;justify-content:space-between;"><span>Reason</span><span>${errorCode} — ${errorMessage}</span></div>
+    </div>
+    <p style="margin:12px 0 0;">You can try again or use a different payment method.</p>
+  `;
+
+  try {
+    const html = renderBaseEmailLayout({
+      title: "Your pixel purchase didn’t complete",
+      subtitle: "No funds have been captured for this attempt.",
+      contentHtml,
+      primaryCtaLabel: "Try again",
+      primaryCtaHref: appBaseUrl,
+      footerNote: "If you need help, contact support@yourpixels.online.",
+    });
+
+    await resend.emails.send({
+      from: "Buy Your Pixels <noreply@yourpixels.online>",
+      to: recipientEmail,
+      subject: "Pixel purchase attempt failed",
+      html,
+    });
+
+    console.log("[mail] purchase failure email sent", { email: recipientEmail, attemptedAmount });
+  } catch (err) {
+    console.error("[mail] purchase failure email failed", { email: recipientEmail, error: err.message });
+  }
+}
+
+export async function sendSupportAlertEmail(alertData = {}) {
+  const recipient = process.env.SUPPORT_ALERT_EMAIL;
+  if (!recipient) {
+    console.warn("[mail] support alert skipped; SUPPORT_ALERT_EMAIL not set");
+    return;
+  }
+  const {
+    type,
+    path,
+    userId,
+    profileId,
+    email,
+    orderRef,
+    stripePaymentIntentId,
+    stripeCheckoutSessionId,
+    errorMessage,
+    stack,
+    additionalContext,
+  } = alertData;
+
+  const safeStack = stack ? String(stack).slice(0, 800) : undefined;
+  const summary = {
+    type,
+    path,
+    userId,
+    profileId,
+    email,
+    orderRef,
+    stripePaymentIntentId,
+    stripeCheckoutSessionId,
+    errorMessage,
+    stack: safeStack,
+    additionalContext,
+  };
+
+  const contentHtml = `
+    <p style="margin:0 0 12px;">Type: ${type || "Unknown error"}</p>
+    <p style="margin:0 0 12px;">Path: ${path || "N/A"}</p>
+    <p style="margin:0 0 12px;">User: ${userId || profileId || email || "N/A"}</p>
+    <p style="margin:0 0 12px;">Order/PI: ${orderRef || stripePaymentIntentId || stripeCheckoutSessionId || "N/A"}</p>
+    <p style="margin:0 0 12px;">Error: ${errorMessage || "N/A"}</p>
+    <pre style="margin:0;padding:12px;border-radius:10px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);white-space:pre-wrap;font-size:12px;">${JSON.stringify(summary, null, 2)}</pre>
+  `;
+
+  const html = renderBaseEmailLayout({
+    title: "Backend alert on yourpixels.online",
+    subtitle: `Alert type: ${type || "Unknown"}`,
+    contentHtml,
+    primaryCtaLabel: "",
+    primaryCtaHref: "",
+    footerNote:
+      "You are receiving this message because you are configured as the alert recipient for yourpixels.online.",
+  });
+
+  try {
+    await resend.emails.send({
+      from: "Buy Your Pixels <noreply@yourpixels.online>",
+      to: recipient,
+      subject: `[yourpixels.online] Backend alert: ${type || "Unknown error"}`,
+      html,
+    });
+    console.log("[mail] support alert sent", { to: recipient, type });
+  } catch (err) {
+    console.error("[mail] support alert failed", { to: recipient, error: err.message });
   }
 }
 

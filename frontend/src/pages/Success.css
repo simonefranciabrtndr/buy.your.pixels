@@ -28,7 +28,7 @@
   backdrop-filter: blur(26px);
   text-align: center;
   z-index: 1;
-  animation: successFadeIn 0.45s ease-out;
+  animation: successFadeIn 0.45s ease-out, successGlow 10s ease-in-out infinite;
 }
 
 @keyframes successFadeIn {
@@ -122,6 +122,8 @@
 
 .btn-primary:hover {
   opacity: 0.92;
+  transform: scale(1.02);
+  box-shadow: 0 10px 24px rgba(30, 105, 227, 0.45);
 }
 
 .btn-secondary {
@@ -142,4 +144,12 @@
 
 .btn-secondary:hover {
   background: rgba(255,255,255,0.12);
+  transform: scale(1.02);
+  box-shadow: 0 8px 20px rgba(255, 255, 255, 0.08);
+}
+
+@keyframes successGlow {
+  0% { box-shadow: 0 18px 55px rgba(0, 0, 0, 0.75), 0 0 16px rgba(79, 157, 255, 0.15); }
+  50% { box-shadow: 0 18px 55px rgba(0, 0, 0, 0.75), 0 0 26px rgba(79, 157, 255, 0.28); }
+  100% { box-shadow: 0 18px 55px rgba(0, 0, 0, 0.75), 0 0 16px rgba(79, 157, 255, 0.15); }
 }

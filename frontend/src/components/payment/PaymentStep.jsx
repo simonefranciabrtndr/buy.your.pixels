@@ -145,6 +145,19 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       });
 
       if (stripeError) {
+        fetch("/api/purchases/failed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            pixels: areaSummary.pixelsRaw || 0,
+            totalAmount: totalPriceEUR,
+            currency: PAYMENT_CURRENCY,
+            errorCode: stripeError.code || null,
+            errorMessage: stripeError.message || null,
+            stripePaymentIntentId: paymentIntent?.id || null,
+          }),
+        }).catch(() => {});
         console.error("[checkout] Stripe payment failed", stripeError);
         setError(stripeError.message || "Stripe payment failed");
         navigate("/failed", {
@@ -184,6 +197,19 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
         });
       }, 600);
     } catch (err) {
+      fetch("/api/purchases/failed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          pixels: areaSummary.pixelsRaw || 0,
+          totalAmount: totalPriceEUR,
+          currency: PAYMENT_CURRENCY,
+          errorCode: null,
+          errorMessage: err.message || null,
+          stripePaymentIntentId: null,
+        }),
+      }).catch(() => {});
       console.error("[checkout] Stripe payment failed", err);
       setError(err.message || "Unexpected Stripe error");
       navigate("/failed", {
