@@ -24,13 +24,18 @@ import { resolveDomainDiagnostics } from "./utils/dnsCheck.js";
 import { createRateLimiter } from "./middleware/rateLimit.js";
 import { sendMetaPurchaseEvent } from "./analytics/meta.js";
 
+// FIX: enforce critical secrets
+if (!process.env.PROFILE_TOKEN_SECRET) {
+  throw new Error("PROFILE_TOKEN_SECRET environment variable is required");
+}
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: "2024-06-20" }) : null;
 
 const sessions = new Map();
+const purchaseDedupKeys = new Set(); // FIX: basic idempotency guard
 const developerSessions = new Map();
 const DEVELOPER_SESSION_TTL = 1000 * 60 * 60 * 12; // 12 hours
 const PROFILE_SESSION_TTL = 1000 * 60 * 60 * 24 * 7; // 7 days
-const PROFILE_TOKEN_SECRET = process.env.PROFILE_TOKEN_SECRET || config.stripe.secretKey || "profile-secret";
+const PROFILE_TOKEN_SECRET = process.env.PROFILE_TOKEN_SECRET;
 
 const buildSelectionSummary = (area) => {
   if (!area) return null;
@@ -131,6 +136,51 @@ const attachProfileFromAuth = (req) => {
 
 const allowedOrigins = Array.from(new Set([...config.allowedOrigins, "https://api.yourpixels.online"]));
 
+// FIX: validation helpers
+const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
+const isFiniteNumber = (value) => Number.isFinite(Number(value));
+
+const validateCheckoutBody = (body = {}) => {
+  const priceOk = isFiniteNumber(body.price) && Number(body.price) > 0;
+  const areaOk = typeof body.area === "object" && body.area !== null;
+  return priceOk && areaOk;
+};
+
+const validatePurchasePayload = (payload = {}) => {
+  const rectOk =
+    payload.rect &&
+    ["x", "y", "w", "h"].every((k) => isFiniteNumber(payload.rect[k])) &&
+    Number(payload.rect.w) > 0 &&
+    Number(payload.rect.h) > 0;
+  const tilesOk = Array.isArray(payload.tiles) && payload.tiles.length > 0;
+  const areaOk = isFiniteNumber(payload.area) && Number(payload.area) > 0;
+  const priceOk = isFiniteNumber(payload.price) && Number(payload.price) >= 0;
+  return rectOk && tilesOk && areaOk && priceOk;
+};
+
+const validateProfileRegisterBody = (body = {}) =>
+  isNonEmptyString(body.email) && isNonEmptyString(body.username) && isNonEmptyString(body.password);
+
+const validateProfileLoginBody = (body = {}) => isNonEmptyString(body.email) && isNonEmptyString(body.password);
+
+const validatePresenceHeartbeatBody = (body = {}) =>
+  isNonEmptyString(body.sessionId) && (body.selectionPixels === undefined || isFiniteNumber(body.selectionPixels));
+
+const validateDeveloperLoginBody = (body = {}) => isNonEmptyString(body.password);
+
+// FIX: rate limiters for auth-sensitive endpoints
+const profileAuthRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 10,
+  keyPrefix: "profile-auth",
+});
+
+const developerAuthRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 10,
+  keyPrefix: "developer-auth",
+});
+
 const checkoutRateLimit = createRateLimiter({
   windowMs: 60_000,
   max: 20,
@@ -211,11 +261,11 @@ export const createApp = () => {
   });
 
   app.post("/api/checkout/session", checkoutRateLimit, async (req, res) => {
+    if (!validateCheckoutBody(req.body)) {
+      return res.status(400).json({ error: "Invalid request" });
+    }
     const { area, price, currency = "eur", metadata = {} } = req.body || {};
     const normalizedPrice = Number(price);
-    if (!area || !Number.isFinite(normalizedPrice) || normalizedPrice <= 0) {
-      return res.status(400).send("Invalid selection or price");
-    }
 
     const amountInMinor = Math.round(normalizedPrice * 100);
     const sessionId = uuid();
@@ -226,8 +276,6 @@ export const createApp = () => {
       availableMethods: [],
       summary: buildSelectionSummary(area),
     };
-    const providerErrors = [];
-
     try {
       if (stripeClient && config.stripe.publishableKey) {
         try {
@@ -249,17 +297,12 @@ export const createApp = () => {
           response.availableMethods.push("stripe");
         } catch (stripeErr) {
           console.error("Stripe PaymentIntent failed", stripeErr);
-          providerErrors.push({
-            provider: "stripe",
-            message: stripeErr?.message || "Stripe is temporarily unavailable",
-          });
         }
       }
 
       if (!response.availableMethods.length) {
         return res.status(503).json({
           error: "No payment methods available",
-          details: providerErrors,
         });
       }
 
@@ -323,20 +366,23 @@ export const createApp = () => {
   });
 
   app.post("/api/presence/heartbeat", (req, res) => {
-    const { sessionId, isSelecting = false, selectionPixels = 0 } = req.body || {};
-    if (!sessionId) {
-      return res.status(400).json({ error: "sessionId is required" });
+    if (!validatePresenceHeartbeatBody(req.body)) {
+      return res.status(400).json({ error: "Invalid request" });
     }
+    const { sessionId, isSelecting = false, selectionPixels = 0 } = req.body || {};
     touchPresence({ sessionId, isSelecting, selectionPixels });
     res.json({ status: "ok" });
   });
 
-  app.post("/api/developer/login", (req, res) => {
+  app.post("/api/developer/login", developerAuthRateLimit, (req, res) => {
     if (!config.developer.password) {
       return res.status(503).json({ error: "Developer access not configured" });
     }
+    if (!validateDeveloperLoginBody(req.body)) {
+      return res.status(400).json({ error: "Invalid request" });
+    }
     const { password } = req.body || {};
-    if (!password || password !== config.developer.password) {
+    if (password !== config.developer.password) {
       return res.status(401).json({ error: "Invalid developer credentials" });
     }
     const token = createDeveloperSession();
@@ -371,11 +417,11 @@ export const createApp = () => {
     }
   });
 
-  app.post("/api/profile/register", async (req, res) => {
-    const { email, username, password, subscribeNewsletter, avatarData } = req.body || {};
-    if (!email || !username || !password) {
-      return res.status(400).json({ error: "Email, username and password are required" });
+  app.post("/api/profile/register", profileAuthRateLimit, async (req, res) => {
+    if (!validateProfileRegisterBody(req.body)) {
+      return res.status(400).json({ error: "Invalid request" });
     }
+    const { email, username, password, subscribeNewsletter, avatarData } = req.body || {};
     try {
       const existing = await findProfileByEmail(email);
       if (existing) {
@@ -398,11 +444,11 @@ export const createApp = () => {
     }
   });
 
-  app.post("/api/profile/login", async (req, res) => {
-    const { email, password } = req.body || {};
-    if (!email || !password) {
-      return res.status(400).json({ error: "Email and password are required" });
+  app.post("/api/profile/login", profileAuthRateLimit, async (req, res) => {
+    if (!validateProfileLoginBody(req.body)) {
+      return res.status(400).json({ error: "Invalid request" });
     }
+    const { email, password } = req.body || {};
     try {
       const existing = await findProfileByEmail(email);
       if (!existing) {
@@ -536,11 +582,15 @@ export const createApp = () => {
 
   app.post("/api/purchases", purchaseRateLimit, async (req, res) => {
     if (!config.databaseUrl) {
-      return res.status(503).send("Database not configured");
+      return res.status(503).json({ error: "Service unavailable" });
     }
     const payload = req.body || {};
-    if (!payload?.rect || !payload?.tiles || !payload?.area) {
-      return res.status(400).send("Invalid payload");
+    if (!validatePurchasePayload(payload)) {
+      return res.status(400).json({ error: "Invalid request" });
+    }
+    const dedupKey = payload.id || payload.paymentIntentId || payload.sessionId;
+    if (dedupKey && purchaseDedupKeys.has(dedupKey)) {
+      return res.status(409).json({ error: "Duplicate purchase" });
     }
     try {
       const profileId = attachProfileFromAuth(req);
@@ -565,6 +615,9 @@ export const createApp = () => {
         price: saved?.price,
         profileId: saved?.profileId || profileId || null,
       });
+      if (dedupKey) {
+        purchaseDedupKeys.add(dedupKey);
+      }
       res.status(201).json(saved);
 
       // fire-and-forget email (does not block the response)

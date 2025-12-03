@@ -2,6 +2,21 @@ import { createApp } from "./app.js";
 import { config } from "./config.js";
 import { initializePurchaseStore } from "./purchaseStore.js";
 
+// FIX: critical env checks
+const requiredEnv = ["JWT_SECRET", "PROFILE_TOKEN_SECRET"];
+requiredEnv.forEach((key) => {
+  if (!process.env[key]) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+});
+
+if (!process.env.RESEND_API_KEY) {
+  console.error("RESEND_API_KEY is not set; email sending will be disabled.");
+}
+if (!config.stripe.secretKey || !config.stripe.publishableKey) {
+  console.error("Stripe keys are missing; checkout will be unavailable.");
+}
+
 const app = createApp();
 const port = config.port || process.env.PORT || 4000;
 

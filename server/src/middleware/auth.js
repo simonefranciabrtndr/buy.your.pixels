@@ -1,5 +1,11 @@
 import jwt from "jsonwebtoken";
 
+// FIX: enforce presence of JWT secret at module load
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET environment variable is required for auth");
+}
+
 export const authMiddleware = (req, _res, next) => {
   req.user = null;
   const token = req.cookies?.auth_token;
@@ -7,7 +13,7 @@ export const authMiddleware = (req, _res, next) => {
     return next();
   }
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "dev-secret");
+    const decoded = jwt.verify(token, JWT_SECRET);
     req.user = {
       id: decoded.userId,
       email: decoded.email,
@@ -19,7 +25,7 @@ export const authMiddleware = (req, _res, next) => {
 };
 
 export function issueAuthCookie(res, payload) {
-  const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "7d" });
+  const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 
   console.log("🔥 Setting auth cookie on backend domain:", res?.req?.hostname);
 
