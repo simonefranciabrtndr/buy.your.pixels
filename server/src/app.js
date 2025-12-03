@@ -27,6 +27,7 @@ import { sendMetaPurchaseEvent } from "./analytics/meta.js";
 import { analyzeImageSafety } from "./utils/imageSafety.js";
 import { validateAndNormalizeURL } from "./utils/linkValidator.js";
 import { validateTransform } from "./utils/safeImageTransform.js";
+import { getPool } from "./purchaseStore.js";
 
 // FIX: enforce critical secrets
 if (!process.env.PROFILE_TOKEN_SECRET) {
@@ -264,7 +265,28 @@ export const createApp = () => {
   app.use(authMiddleware);
 
   app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok" });
+    const start = Date.now();
+    const payload = { status: "ok", database: "not_configured" };
+    let pool = null;
+    try {
+      pool = config.databaseUrl ? getPool() : null;
+    } catch {
+      pool = null;
+    }
+    if (!pool) {
+      return res.json(payload);
+    }
+    pool
+      .query("SELECT 1;")
+      .then(() => {
+        payload.database = "connected";
+        payload.latency_ms = Date.now() - start;
+        res.json(payload);
+      })
+      .catch(() => {
+        payload.database = "error";
+        res.json(payload);
+      });
   });
 
   app.use("/api/auth", authRouter);
@@ -789,6 +811,7 @@ export const createApp = () => {
         imageTransform: normalizedTransform,
         previewData: normalizedPreview,
         nsfw: nsfwFlag,
+        paymentIntentId: payload.paymentIntentId || payload.payment_intent_id || null,
         profileId,
       });
       const profileRecord = profileId ? await findProfileById(profileId) : null;
@@ -831,6 +854,9 @@ export const createApp = () => {
         }
       });
     } catch (error) {
+      if (error?.code === "23505") {
+        return res.status(409).json({ error: "Duplicate purchase" });
+      }
       console.error("Failed to store purchase", error);
       Promise.resolve().then(async () => {
         try {

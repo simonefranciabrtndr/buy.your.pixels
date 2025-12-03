@@ -1,4 +1,5 @@
 import { v4 as uuid } from "uuid";
+import { safeQuery } from "./utils/safeQuery.js";
 
 let pool = null;
 
@@ -10,7 +11,8 @@ const mapProfile = (row) =>
         username: row.username,
         avatarData: row.avatar_data,
         newsletter: row.newsletter,
-        createdAt: row.created_at,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+        updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : row.created_at ? new Date(row.created_at).toISOString() : null,
       }
     : null;
 
@@ -44,23 +46,30 @@ export const initializeProfileStore = async (sharedPool) => {
 
 export const createProfileRecord = async ({ email, username, passwordHash, avatarData, newsletter }) => {
   const id = uuid();
-  const { rows } = await pool.query(
+  const normalizedEmail = String(email || "").toLowerCase();
+  const existing = await findProfileByEmail(normalizedEmail);
+  if (existing?.profile) {
+    throw new Error("Email already registered");
+  }
+  const { rows } = await safeQuery(
+    pool,
     `
       INSERT INTO profiles (id, email, username, password_hash, avatar_data, newsletter)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *;
     `,
-    [id, email, username, passwordHash, avatarData || null, Boolean(newsletter)]
+    [id, normalizedEmail, username, passwordHash, typeof avatarData === "string" ? avatarData : null, Boolean(newsletter)]
   );
   return mapProfile(rows[0]);
 };
 
 export const findProfileByEmail = async (email) => {
-  const { rows } = await pool.query(`SELECT * FROM profiles WHERE email = $1 LIMIT 1`, [email]);
+  const normalizedEmail = String(email || "").toLowerCase();
+  const { rows } = await safeQuery(pool, `SELECT * FROM profiles WHERE email = $1 LIMIT 1`, [normalizedEmail]);
   return rows.length ? { raw: rows[0], profile: mapProfile(rows[0]) } : null;
 };
 
 export const findProfileById = async (id) => {
-  const { rows } = await pool.query(`SELECT * FROM profiles WHERE id = $1 LIMIT 1`, [id]);
+  const { rows } = await safeQuery(pool, `SELECT * FROM profiles WHERE id = $1 LIMIT 1`, [id]);
   return rows.length ? { raw: rows[0], profile: mapProfile(rows[0]) } : null;
 };

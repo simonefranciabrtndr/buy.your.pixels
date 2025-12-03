@@ -1,6 +1,7 @@
 import { createApp } from "./app.js";
 import { config } from "./config.js";
 import { initializePurchaseStore } from "./purchaseStore.js";
+import { ensureIndexes } from "./utils/dbMaintenance.js";
 
 // FIX: critical env checks
 const requiredEnv = ["JWT_SECRET", "PROFILE_TOKEN_SECRET"];
@@ -23,6 +24,12 @@ const port = config.port || process.env.PORT || 4000;
 const start = async () => {
   try {
     await initializePurchaseStore();
+    try {
+      await ensureIndexes();
+      console.log("[dbMaintenance] indexes ensured");
+    } catch (err) {
+      console.warn("[dbMaintenance] failed to ensure indexes", err?.message);
+    }
     app.listen(port, () => {
       console.log(`Payment server running on port ${port}`);
     });

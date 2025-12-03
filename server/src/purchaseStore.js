@@ -3,6 +3,7 @@ import { v4 as uuid } from "uuid";
 import { config } from "./config.js";
 import { initializeProfileStore } from "./profileStore.js";
 import { initializeUserStore } from "./userStore.js";
+import { safeQuery } from "./utils/safeQuery.js";
 
 let pool = null;
 
@@ -52,10 +53,14 @@ export const initializePurchaseStore = async () => {
       uploaded_image TEXT,
       image_transform JSONB,
       preview_data JSONB,
-      nsfw BOOLEAN DEFAULT FALSE,
+      nsfw BOOLEAN DEFAULT NULL,
+      payment_intent_id TEXT,
+      deleted_at TIMESTAMP NULL,
       created_at TIMESTAMPTZ DEFAULT NOW()
     );
   `);
+  await pool.query(`ALTER TABLE purchases ADD COLUMN IF NOT EXISTS payment_intent_id TEXT;`);
+  await pool.query(`ALTER TABLE purchases ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL;`);
 
   await initializeProfileStore(pool);
   await initializeUserStore(pool);
@@ -66,22 +71,34 @@ const isUuid = (value = "") => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab]
 export const recordPurchase = async (purchase) => {
   const db = getPool();
   const purchaseId = isUuid(purchase.id) ? purchase.id : uuid();
+  const rect = purchase.rect || {};
+  const tiles = Array.isArray(purchase.tiles) ? purchase.tiles : [];
+  const imageTransform = purchase.imageTransform || {};
+  const previewData = purchase.previewData || {};
+  const paymentIntentId = purchase.paymentIntentId || purchase.payment_intent_id || null;
+
+  if (!rect || typeof rect !== "object" || !tiles.length) {
+    throw new Error("Invalid purchase payload");
+  }
+
   const normalizedNsfw = typeof purchase.nsfw === "boolean" ? purchase.nsfw : null;
   const values = [
     purchaseId,
-    JSON.stringify(purchase.rect || {}),
-    JSON.stringify(purchase.tiles || []),
+    JSON.stringify(rect),
+    JSON.stringify(tiles),
     Math.round(Number(purchase.area) || 0),
     Number(purchase.price || 0),
     purchase.link || null,
     purchase.uploadedImage || null,
-    JSON.stringify(purchase.imageTransform || {}),
-    JSON.stringify(purchase.previewData || {}),
+    JSON.stringify(imageTransform),
+    JSON.stringify(previewData),
     normalizedNsfw,
+    paymentIntentId,
     purchase.profileId || null,
   ];
 
-  const { rows } = await db.query(
+  const { rows } = await safeQuery(
+    db,
     `
       INSERT INTO purchases (
         id,
@@ -94,9 +111,10 @@ export const recordPurchase = async (purchase) => {
         image_transform,
         preview_data,
         nsfw,
+        payment_intent_id,
         profile_id
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
       ON CONFLICT (id)
       DO UPDATE SET
         rect = EXCLUDED.rect,
@@ -108,6 +126,7 @@ export const recordPurchase = async (purchase) => {
         image_transform = EXCLUDED.image_transform,
         preview_data = EXCLUDED.preview_data,
         nsfw = EXCLUDED.nsfw,
+        payment_intent_id = COALESCE(EXCLUDED.payment_intent_id, purchases.payment_intent_id),
         profile_id = COALESCE(EXCLUDED.profile_id, purchases.profile_id)
       RETURNING *;
     `,
@@ -119,30 +138,34 @@ export const recordPurchase = async (purchase) => {
 
 export const listPurchases = async () => {
   if (!pool) return [];
-  const { rows } = await pool.query("SELECT * FROM purchases ORDER BY created_at ASC");
-  return rows.map(normalizePurchase);
+  const { rows } = await safeQuery(pool, "SELECT * FROM purchases WHERE deleted_at IS NULL ORDER BY created_at ASC", []);
+  return rows.map(normalizePurchase).filter(Boolean);
 };
 
 export const listPendingModeration = async () => {
   if (!pool) return [];
-  const { rows } = await pool.query(
+  const { rows } = await safeQuery(
+    pool,
     `
     SELECT p.*, pr.email
     FROM purchases p
     LEFT JOIN profiles pr ON pr.id = p.profile_id
-    WHERE p.nsfw IS NULL
+    WHERE p.nsfw IS NULL AND p.deleted_at IS NULL
     ORDER BY p.created_at DESC
-    `
+    `,
+    []
   );
-  return rows.map((row) => ({
-    ...normalizePurchase(row),
-    email: row.email || null,
-  }));
+  return rows
+    .map((row) => ({
+      ...normalizePurchase(row),
+      email: row.email || null,
+    }))
+    .filter(Boolean);
 };
 
 export const sumPurchasedPixels = async () => {
   if (!pool) return 0;
-  const { rows } = await pool.query("SELECT COALESCE(SUM(area), 0) AS total FROM purchases");
+  const { rows } = await safeQuery(pool, "SELECT COALESCE(SUM(area), 0) AS total FROM purchases WHERE deleted_at IS NULL", []);
   return Number(rows[0]?.total || 0);
 };
 
@@ -162,10 +185,10 @@ export const updatePurchaseModeration = async (id, { nsfw }) => {
   const query = `
     UPDATE purchases
     SET ${updates.join(", ")}
-    WHERE id = $1
+    WHERE id = $1 AND deleted_at IS NULL
     RETURNING *;
   `;
-  const { rows } = await pool.query(query, values);
+  const { rows } = await safeQuery(pool, query, values);
   if (!rows.length) {
     throw new Error("Purchase not found");
   }
@@ -174,11 +197,12 @@ export const updatePurchaseModeration = async (id, { nsfw }) => {
 
 export const listPurchasesByProfile = async (profileId) => {
   if (!pool || !profileId) return [];
-  const { rows } = await pool.query(
-    "SELECT * FROM purchases WHERE profile_id = $1 ORDER BY created_at DESC",
+  const { rows } = await safeQuery(
+    pool,
+    "SELECT * FROM purchases WHERE profile_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC",
     [profileId]
   );
-  return rows.map(normalizePurchase);
+  return rows.map(normalizePurchase).filter(Boolean);
 };
 
 export const updateOwnedPurchase = async (profileId, purchaseId, { link, uploadedImage, imageTransform, nsfw, previewData }) => {
@@ -216,7 +240,7 @@ export const updateOwnedPurchase = async (profileId, purchaseId, { link, uploade
     WHERE profile_id = $1 AND id = $2
     RETURNING *;
   `;
-  const { rows } = await pool.query(query, values);
+  const { rows } = await safeQuery(pool, query, values);
   if (!rows.length) {
     throw new Error("Purchase not found");
   }
@@ -224,19 +248,21 @@ export const updateOwnedPurchase = async (profileId, purchaseId, { link, uploade
 };
 
 const normalizePurchase = (row) => {
-  if (!row) return null;
+  if (!row || row.deleted_at) return null;
   return {
     id: row.id,
-    rect: row.rect,
-    tiles: row.tiles,
+    rect: typeof row.rect === "string" ? JSON.parse(row.rect) : row.rect || {},
+    tiles: typeof row.tiles === "string" ? JSON.parse(row.tiles) : row.tiles || [],
     area: Number(row.area || 0),
     price: Number(row.price || 0),
     link: row.link,
     uploadedImage: row.uploaded_image,
-    imageTransform: row.image_transform,
-    previewData: row.preview_data,
+    imageTransform: typeof row.image_transform === "string" ? JSON.parse(row.image_transform) : row.image_transform || {},
+    previewData: typeof row.preview_data === "string" ? JSON.parse(row.preview_data) : row.preview_data || {},
     nsfw: row.nsfw,
+    nsfwConfidence: row.nsfw_confidence || null,
+    paymentIntentId: row.payment_intent_id || null,
     profileId: row.profile_id,
-    createdAt: row.created_at,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
   };
 };
