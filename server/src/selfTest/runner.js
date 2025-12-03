@@ -12,16 +12,16 @@ const runWithTiming = async (name, fn) => {
     return {
       name,
       success: !!result?.success,
-      details: result || {},
+      details: result?.details || result || {},
       duration_ms: Date.now() - startedAt,
-      error: result?.error || null,
+      error: result?.success ? null : result?.error || null,
     };
   } catch (err) {
     return {
       name,
       success: false,
       duration_ms: Date.now() - startedAt,
-      error: err?.message || "Unknown error",
+      error: err,
       details: {},
     };
   }

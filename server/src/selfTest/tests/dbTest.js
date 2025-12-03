@@ -1,5 +1,6 @@
 import { getPool } from "../../purchaseStore.js";
 import { safeQuery } from "../../utils/safeQuery.js";
+import { formatError } from "../utils/formatError.js";
 
 export async function dbTest() {
   const details = {};
@@ -59,6 +60,8 @@ export async function dbTest() {
 
     return { success: true, details };
   } catch (error) {
-    return { success: false, error: error?.message || "DB error", details };
+    const formatted = await formatError(error, { test: "dbTest" });
+    console.error("🔴 SELF-TEST FAILURE", formatted);
+    return { success: false, error: formatted, details };
   }
 }

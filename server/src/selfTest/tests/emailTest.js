@@ -1,18 +1,17 @@
+import { formatError } from "../utils/formatError.js";
+
 export async function emailTest() {
+  const started = Date.now();
   try {
     const res = await fetch("https://api.resend.com/domains", { method: "GET" });
-    return { success: res.ok, status: res.status };
+    return { success: res.ok, status: res.status, duration_ms: Date.now() - started };
   } catch (error) {
-    console.error("[SELF-TEST][EMAIL] Resend error:", {
-      status: error?.status,
-      message: error?.message,
-      data: error?.response?.data
+    const formatted = await formatError(error, {
+      test: "emailTest",
+      request: { url: "https://api.resend.com/domains", method: "GET" },
+      startedAt: started,
     });
-    return {
-      success: false,
-      status: error?.status || 500,
-      errorMessage: error?.message || "Unknown Resend error",
-      errorData: error?.response?.data || null
-    };
+    console.error("🔴 SELF-TEST FAILURE", formatted);
+    return { success: false, error: formatted };
   }
 }

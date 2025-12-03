@@ -117,6 +117,18 @@
   overflow-x: auto;
 }
 
+.selftest-error-block {
+  background: rgba(255,0,0,0.08);
+  border: 1px solid rgba(255,0,0,0.25);
+  padding: 12px;
+  border-radius: 8px;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  margin-top: 6px;
+}
+
 .st-pass {
   color: #43f58c;
 }

@@ -23,6 +23,9 @@ function AccordionItem({ item }) {
           )}
         </pre>
       )}
+      {!item.success && item.error && (
+        <pre className="selftest-error-block">{JSON.stringify(item.error, null, 2)}</pre>
+      )}
     </div>
   );
 }
