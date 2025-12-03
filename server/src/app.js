@@ -15,6 +15,7 @@ import {
   sumPurchasedPixels,
   updateOwnedPurchase,
   updatePurchaseModeration,
+  listPendingModeration,
 } from "./purchaseStore.js";
 import { sendPurchaseReceiptEmail, sendPurchaseFailureEmail, sendSupportAlertEmail, sendTestEmail } from "./notifications.js";
 import { createProfileRecord, findProfileByEmail, findProfileById } from "./profileStore.js";
@@ -23,6 +24,9 @@ import { authMiddleware } from "./middleware/auth.js";
 import { resolveDomainDiagnostics } from "./utils/dnsCheck.js";
 import { createRateLimiter } from "./middleware/rateLimit.js";
 import { sendMetaPurchaseEvent } from "./analytics/meta.js";
+import { analyzeImageSafety } from "./utils/imageSafety.js";
+import { validateAndNormalizeURL } from "./utils/linkValidator.js";
+import { validateTransform } from "./utils/safeImageTransform.js";
 
 // FIX: enforce critical secrets
 if (!process.env.PROFILE_TOKEN_SECRET) {
@@ -167,6 +171,45 @@ const validatePresenceHeartbeatBody = (body = {}) =>
   isNonEmptyString(body.sessionId) && (body.selectionPixels === undefined || isFiniteNumber(body.selectionPixels));
 
 const validateDeveloperLoginBody = (body = {}) => isNonEmptyString(body.password);
+
+const validatePreviewData = (data = {}) => {
+  if (!data || typeof data !== "object") return null;
+  const coords = ["x", "y", "w", "h"];
+  const out = {};
+  for (const key of coords) {
+    if (typeof data[key] !== "undefined") {
+      const num = Number(data[key]);
+      if (!Number.isFinite(num)) throw new Error("Invalid preview data");
+      out[key] = num;
+    }
+  }
+  return out;
+};
+
+const isUnsafeImagePayload = (payload = "") => {
+  if (typeof payload !== "string") return false;
+  const lowered = payload.toLowerCase();
+  return (
+    lowered.includes("<script") ||
+    lowered.includes("<svg") ||
+    lowered.includes("javascript:") ||
+    lowered.includes("<html") ||
+    lowered.includes("<body") ||
+    lowered.startsWith("data:text/html") ||
+    lowered.startsWith("data:text/svg")
+  );
+};
+
+const logContentRejection = ({ profileId, reason, nsfwConfidence, ip, userAgent }) => {
+  console.warn("[content_rejected]", {
+    type: "content_rejected",
+    profileId,
+    reason,
+    nsfwConfidence,
+    ip,
+    userAgent,
+  });
+};
 
 // FIX: rate limiters for auth-sensitive endpoints
 const profileAuthRateLimit = createRateLimiter({
@@ -417,6 +460,26 @@ export const createApp = () => {
     }
   });
 
+  app.get("/api/developer/moderation/pending", requireDeveloperAuth, async (_req, res) => {
+    try {
+      const pending = await listPendingModeration();
+      res.json({
+        purchases: pending.map((p) => ({
+          id: p.id,
+          email: p.email || null,
+          tiles: p.tiles,
+          preview: p.previewData,
+          createdAt: p.createdAt,
+          nsfw: p.nsfw,
+          nsfwConfidence: p.nsfwConfidence || null,
+        })),
+      });
+    } catch (error) {
+      console.error("[moderation] failed to list pending", error);
+      res.status(500).json({ error: "Unable to load pending moderation items" });
+    }
+  });
+
   app.post("/api/profile/register", profileAuthRateLimit, async (req, res) => {
     if (!validateProfileRegisterBody(req.body)) {
       return res.status(400).json({ error: "Invalid request" });
@@ -485,12 +548,80 @@ export const createApp = () => {
     const { purchaseId } = req.params;
     const { link, uploadedImage, imageTransform, nsfw, previewData } = req.body || {};
     try {
+      const userPurchases = await listPurchasesByProfile(req.profileId);
+      const existing = userPurchases.find((p) => String(p.id) === String(purchaseId));
+      if (!existing) {
+        return res.status(404).json({ error: "Purchase not found" });
+      }
+
+      let normalizedLink = existing.link;
+      if (typeof link !== "undefined") {
+        try {
+          normalizedLink = link ? validateAndNormalizeURL(link) : null;
+        } catch (err) {
+          logContentRejection({
+            profileId: req.profileId,
+            reason: "invalid_link",
+            nsfwConfidence: 0,
+            ip: req.ip,
+            userAgent: req.get("user-agent"),
+          });
+          return res.status(400).json({ error: "Invalid content" });
+        }
+      }
+
+      let normalizedTransform = existing.imageTransform;
+      if (typeof imageTransform !== "undefined") {
+        try {
+          normalizedTransform = validateTransform(imageTransform) || {};
+        } catch {
+          return res.status(400).json({ error: "Invalid content" });
+        }
+      }
+
+      let normalizedPreview = existing.previewData;
+      if (typeof previewData !== "undefined") {
+        try {
+          normalizedPreview = validatePreviewData(previewData) || {};
+        } catch {
+          return res.status(400).json({ error: "Invalid content" });
+        }
+      }
+
+      let normalizedImage = typeof uploadedImage !== "undefined" ? uploadedImage : existing.uploadedImage;
+      let nsfwFlag = typeof nsfw === "boolean" ? nsfw : existing.nsfw;
+
+      if (typeof uploadedImage !== "undefined") {
+        if (isUnsafeImagePayload(uploadedImage)) {
+          nsfwFlag = true;
+          logContentRejection({
+            profileId: req.profileId,
+            reason: "unsafe_image_payload",
+            nsfwConfidence: 0.9,
+            ip: req.ip,
+            userAgent: req.get("user-agent"),
+          });
+          return res.status(400).json({ error: "Invalid content" });
+        }
+        const safety = await analyzeImageSafety(uploadedImage);
+        if (!safety.safe) {
+          nsfwFlag = true;
+          logContentRejection({
+            profileId: req.profileId,
+            reason: safety.reason || "unsafe_image",
+            nsfwConfidence: safety.nsfwConfidence,
+            ip: req.ip,
+            userAgent: req.get("user-agent"),
+          });
+        }
+      }
+
       const updated = await updateOwnedPurchase(req.profileId, purchaseId, {
-        link,
-        uploadedImage,
-        imageTransform,
-        nsfw,
-        previewData,
+        link: normalizedLink,
+        uploadedImage: normalizedImage,
+        imageTransform: normalizedTransform,
+        nsfw: nsfwFlag,
+        previewData: normalizedPreview,
       });
       res.json(updated);
     } catch (error) {
@@ -588,6 +719,58 @@ export const createApp = () => {
     if (!validatePurchasePayload(payload)) {
       return res.status(400).json({ error: "Invalid request" });
     }
+    let nsfwFlag = typeof payload.nsfw === "boolean" ? payload.nsfw : null;
+    let normalizedPreview = {};
+    try {
+      normalizedPreview = validatePreviewData(payload.previewData) || {};
+    } catch {
+      return res.status(400).json({ error: "Invalid request" });
+    }
+    let normalizedTransform = {};
+    try {
+      normalizedTransform = validateTransform(payload.imageTransform) || {};
+    } catch {
+      return res.status(400).json({ error: "Invalid request" });
+    }
+    let normalizedLink = payload.link;
+    if (typeof payload.link !== "undefined" && payload.link !== null) {
+      try {
+        normalizedLink = validateAndNormalizeURL(payload.link);
+      } catch (err) {
+        logContentRejection({
+          profileId: req.profileId,
+          reason: "invalid_link",
+          nsfwConfidence: 0,
+          ip: req.ip,
+          userAgent: req.get("user-agent"),
+        });
+        return res.status(400).json({ error: "Invalid content" });
+      }
+    }
+    if (payload.uploadedImage) {
+      if (isUnsafeImagePayload(payload.uploadedImage)) {
+        nsfwFlag = true;
+        logContentRejection({
+          profileId: req.profileId,
+          reason: "unsafe_image_payload",
+          nsfwConfidence: 0.9,
+          ip: req.ip,
+          userAgent: req.get("user-agent"),
+        });
+        return res.status(400).json({ error: "Invalid content" });
+      }
+      const safety = await analyzeImageSafety(payload.uploadedImage);
+      if (!safety.safe) {
+        nsfwFlag = true;
+        logContentRejection({
+          profileId: req.profileId,
+          reason: safety.reason || "unsafe_image",
+          nsfwConfidence: safety.nsfwConfidence,
+          ip: req.ip,
+          userAgent: req.get("user-agent"),
+        });
+      }
+    }
     const dedupKey = payload.id || payload.paymentIntentId || payload.sessionId;
     if (dedupKey && purchaseDedupKeys.has(dedupKey)) {
       return res.status(409).json({ error: "Duplicate purchase" });
@@ -601,11 +784,11 @@ export const createApp = () => {
         tiles: payload.tiles,
         area: payload.area,
         price: payload.price,
-        link: payload.link,
+        link: normalizedLink,
         uploadedImage: payload.uploadedImage,
-        imageTransform: payload.imageTransform,
-        previewData: payload.previewData,
-        nsfw: payload.nsfw,
+        imageTransform: normalizedTransform,
+        previewData: normalizedPreview,
+        nsfw: nsfwFlag,
         profileId,
       });
       const profileRecord = profileId ? await findProfileById(profileId) : null;

@@ -145,6 +145,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       });
 
       if (stripeError) {
+        window.alert("Your upload or link was rejected for security reasons. Please adjust and try again.");
         fetch("/api/purchases/failed", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -197,6 +198,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
         });
       }, 600);
     } catch (err) {
+      window.alert("Your upload or link was rejected for security reasons. Please adjust and try again.");
       fetch("/api/purchases/failed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

@@ -66,6 +66,7 @@ const isUuid = (value = "") => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab]
 export const recordPurchase = async (purchase) => {
   const db = getPool();
   const purchaseId = isUuid(purchase.id) ? purchase.id : uuid();
+  const normalizedNsfw = typeof purchase.nsfw === "boolean" ? purchase.nsfw : null;
   const values = [
     purchaseId,
     JSON.stringify(purchase.rect || {}),
@@ -76,7 +77,7 @@ export const recordPurchase = async (purchase) => {
     purchase.uploadedImage || null,
     JSON.stringify(purchase.imageTransform || {}),
     JSON.stringify(purchase.previewData || {}),
-    Boolean(purchase.nsfw),
+    normalizedNsfw,
     purchase.profileId || null,
   ];
 
@@ -120,6 +121,23 @@ export const listPurchases = async () => {
   if (!pool) return [];
   const { rows } = await pool.query("SELECT * FROM purchases ORDER BY created_at ASC");
   return rows.map(normalizePurchase);
+};
+
+export const listPendingModeration = async () => {
+  if (!pool) return [];
+  const { rows } = await pool.query(
+    `
+    SELECT p.*, pr.email
+    FROM purchases p
+    LEFT JOIN profiles pr ON pr.id = p.profile_id
+    WHERE p.nsfw IS NULL
+    ORDER BY p.created_at DESC
+    `
+  );
+  return rows.map((row) => ({
+    ...normalizePurchase(row),
+    email: row.email || null,
+  }));
 };
 
 export const sumPurchasedPixels = async () => {
@@ -187,7 +205,7 @@ export const updateOwnedPurchase = async (profileId, purchaseId, { link, uploade
   }
   if (typeof nsfw !== "undefined") {
     updates.push(`nsfw = $${values.length + 1}`);
-    values.push(Boolean(nsfw));
+    values.push(typeof nsfw === "boolean" ? nsfw : null);
   }
   if (!updates.length) {
     throw new Error("No updates submitted");
