@@ -1,0 +1,126 @@
+.st-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: radial-gradient(circle at 20% 20%, rgba(79, 157, 255, 0.18), rgba(5, 8, 22, 0.95)), #050816;
+  color: #f6f8ff;
+}
+
+.st-card {
+  width: 100%;
+  max-width: 720px;
+  padding: 24px;
+  border-radius: 22px;
+  background: radial-gradient(circle at top, rgba(255,255,255,0.06), rgba(5,8,22,0.96));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 55px rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(26px);
+}
+
+.st-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.st-icon {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 24px;
+  font-weight: 700;
+  color: #fff;
+  box-shadow: 0 0 20px rgba(255,255,255,0.12);
+}
+
+.st-icon-pass {
+  background: linear-gradient(135deg, #25f0b5, #1e69e3);
+}
+
+.st-icon-fail {
+  background: linear-gradient(135deg, #ff6b6b, #d83f3f);
+}
+
+.st-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 14px 0;
+}
+
+.st-btn {
+  padding: 10px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: linear-gradient(135deg,#4f9dff,#1e69e3);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.st-btn:hover {
+  transform: scale(1.02);
+}
+
+.st-btn.ghost {
+  background: rgba(255,255,255,0.05);
+}
+
+.st-meta {
+  font-size: 13px;
+  color: rgba(235,240,255,0.7);
+  margin-bottom: 8px;
+}
+
+.st-error {
+  color: #ffb6b6;
+  margin: 8px 0;
+}
+
+.st-accordion {
+  margin-top: 12px;
+}
+
+.st-accordion-item {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: rgba(255,255,255,0.04);
+}
+
+.st-accordion-toggle {
+  width: 100%;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: transparent;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.st-accordion-body {
+  margin: 0;
+  padding: 12px;
+  color: rgba(235,240,255,0.9);
+  font-size: 12px;
+  background: rgba(0,0,0,0.35);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0 0 12px 12px;
+  overflow-x: auto;
+}
+
+.st-pass {
+  color: #43f58c;
+}
+
+.st-fail {
+  color: #ff8b8b;
+}

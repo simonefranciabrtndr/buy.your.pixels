@@ -28,6 +28,7 @@ import { analyzeImageSafety } from "./utils/imageSafety.js";
 import { validateAndNormalizeURL } from "./utils/linkValidator.js";
 import { validateTransform } from "./utils/safeImageTransform.js";
 import { getPool } from "./purchaseStore.js";
+import { runSelfTests, getLastReport } from "./selfTest/runner.js";
 
 // FIX: enforce critical secrets
 if (!process.env.PROFILE_TOKEN_SECRET) {
@@ -249,6 +250,12 @@ const dnsDebugRateLimit = createRateLimiter({
   keyPrefix: "dns-debug",
 });
 
+const selfTestRateLimit = createRateLimiter({
+  windowMs: 60_000,
+  max: 5,
+  keyPrefix: "self-test",
+});
+
 export const createApp = () => {
   const app = express();
   app.disable("etag");
@@ -290,6 +297,25 @@ export const createApp = () => {
   });
 
   app.use("/api/auth", authRouter);
+
+  app.get("/api/self-test/run", selfTestRateLimit, async (_req, res) => {
+    try {
+      const report = await runSelfTests();
+      res.json(report);
+    } catch (err) {
+      console.error("[self-test] failed", err);
+      res.status(500).json({ success: false, error: "Self-test failed" });
+    }
+  });
+
+  app.get("/api/self-test/report", selfTestRateLimit, (_req, res) => {
+    res.json(getLastReport());
+  });
+
+  app.get("/api/self-test/quick", selfTestRateLimit, (_req, res) => {
+    const last = getLastReport();
+    res.json({ ok: !!last?.success });
+  });
 
   app.get("/api/test-email", emailTestRateLimit, async (req, res) => {
     try {
