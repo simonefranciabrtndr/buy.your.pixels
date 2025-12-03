@@ -30,6 +30,12 @@ import { validateTransform } from "./utils/safeImageTransform.js";
 import { getPool } from "./purchaseStore.js";
 import { runSelfTests, getLastReport } from "./selfTest/runner.js";
 
+const maskValue = (v) => {
+  if (!v) return null;
+  if (v.length <= 8) return "*****";
+  return v.slice(0, 3) + "..." + v.slice(-3);
+};
+
 // FIX: enforce critical secrets
 if (!process.env.PROFILE_TOKEN_SECRET) {
   throw new Error("PROFILE_TOKEN_SECRET environment variable is required");
@@ -906,6 +912,30 @@ export const createApp = () => {
       });
       res.status(500).send("Unable to store purchase");
     }
+  });
+
+  app.get("/api/test/env", (req, res) => {
+    const keysToShow = [
+      "NODE_ENV",
+      "RESEND_API_KEY",
+      "TEST_EMAIL_TO",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_PUBLISHABLE_KEY",
+      "PAYPAL_CLIENT_ID",
+      "PAYPAL_ENV",
+      "GOOGLE_CLIENT_ID",
+    ];
+
+    const result = {};
+    for (const k of keysToShow) {
+      const val = process.env[k];
+      result[k] = val ? maskValue(val) : null;
+    }
+
+    return res.json({
+      success: true,
+      env: result,
+    });
   });
 
   app.use((_req, res) => {
