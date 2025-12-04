@@ -283,43 +283,28 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   }, [apiBaseUrl]);
 
   useEffect(() => {
-    if (!paypalConfig?.enabled || !paypalConfig?.clientId) return undefined;
-    const scriptUrl = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
-      paypalConfig.clientId
-    )}&currency=${paypalConfig.currency || "EUR"}&intent=capture`;
+    if (!paypalConfig?.enabled || !paypalConfig?.clientId) return;
 
-    let script = Array.from(document.getElementsByTagName("script")).find((tag) => tag.src === scriptUrl);
-    const handleLoad = () => setPaypalScriptLoaded(true);
-    const handleError = () => setPaypalError("Unable to load PayPal at the moment.");
-
-    if (script) {
-      if (window.paypal) {
-        setPaypalScriptLoaded(true);
-      } else {
-        script.addEventListener("load", handleLoad);
-        script.addEventListener("error", handleError);
-      }
-      return () => {
-        script.removeEventListener("load", handleLoad);
-        script.removeEventListener("error", handleError);
-      };
+    const existing = document.querySelector("script[data-paypal-sdk]");
+    if (existing && window.paypal) {
+      setPaypalScriptLoaded(true);
+      return;
     }
 
-    if (paypalScriptAppendedRef.current) return undefined;
+    if (existing && !window.paypal) {
+      existing.remove();
+    }
 
-    script = document.createElement("script");
-    script.src = scriptUrl;
+    const script = document.createElement("script");
+    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
+      paypalConfig.clientId
+    )}&currency=${paypalConfig.currency || "EUR"}&intent=capture`;
     script.async = true;
     script.dataset.paypalSdk = "true";
-    script.addEventListener("load", handleLoad);
-    script.addEventListener("error", handleError);
-    document.body.appendChild(script);
-    paypalScriptAppendedRef.current = true;
 
-    return () => {
-      script.removeEventListener("load", handleLoad);
-      script.removeEventListener("error", handleError);
-    };
+    script.onload = () => setPaypalScriptLoaded(true);
+    script.onerror = () => setPaypalError("Unable to load PayPal SDK.");
+    document.body.appendChild(script);
   }, [paypalConfig]);
 
   const handlePayPalSuccess = useCallback(
@@ -344,107 +329,55 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   );
 
   useEffect(() => {
-    if (!paypalConfig?.enabled || !paypalScriptLoaded || typeof window === "undefined" || !window.paypal) return undefined;
+    if (!paypalConfig?.enabled) return;
+    if (!paypalScriptLoaded) return;
+    if (!window.paypal) return;
+
     const container = paypalButtonsRef.current;
-    if (!container) return undefined;
-
-    const currentSessionKey = session?.sessionId || "no-session";
-    const alreadyRendered =
-      paypalButtonsInstanceRef.current && lastPayPalSessionRef.current === currentSessionKey;
-    if (alreadyRendered) return undefined;
-
-    if (paypalButtonsInstanceRef.current) {
-      try {
-        paypalButtonsInstanceRef.current.close();
-      } catch {
-        /* noop */
-      }
-      paypalButtonsInstanceRef.current = null;
-    }
+    if (!container) return;
 
     container.innerHTML = "";
 
     const buttons = window.paypal.Buttons({
       style: { layout: "vertical" },
       createOrder: async () => {
-        try {
-          setPaypalError(null);
-          setIsPayPalProcessing(true);
-          const payload = buildPayPalPayload();
-          const response = await fetch(`${apiBaseUrl}/paypal/create-order`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(payload),
-          });
-          const json = await response.json();
-          if (!json?.success || !json?.orderId) {
-            setPaypalError("Could not create PayPal order.");
-            setIsPayPalProcessing(false);
-            throw new Error(json?.error || "PayPal order creation failed");
-          }
-          return json.orderId;
-        } catch (err) {
-          console.error("PayPal create order failed", err);
-          setPaypalError("Could not create PayPal order.");
-          setIsPayPalProcessing(false);
-          throw err;
-        }
+        const payload = buildPayPalPayload();
+        const res = await fetch(`${apiBaseUrl}/paypal/create-order`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+        const json = await res.json();
+        if (!json?.success) throw new Error("createOrder failed");
+        return json.orderId;
       },
       onApprove: async (data) => {
-        try {
-          const response = await fetch(`${apiBaseUrl}/paypal/capture-order`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({ orderId: data?.orderID, purchaseId: session?.sessionId }),
-          });
-          const json = await response.json();
-          if (!json?.success) {
-            setPaypalError("PayPal payment failed.");
-            throw new Error(json?.error || "PayPal capture failed");
-          }
-          if (session?.sessionId) {
-            acknowledgePayment(session.sessionId, "paypal", { orderId: data?.orderID }).catch(() => {});
-          }
-          handlePayPalSuccess(data?.orderID);
-        } catch (err) {
-          console.error("PayPal capture error", err);
-          setPaypalError("PayPal payment failed.");
-          throw err;
-        } finally {
-          setIsPayPalProcessing(false);
-        }
+        const res = await fetch(`${apiBaseUrl}/paypal/capture-order`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            orderId: data?.orderID,
+            purchaseId: session?.sessionId,
+          }),
+        });
+        const json = await res.json();
+        if (!json?.success) throw new Error("captureOrder failed");
+        acknowledgePayment(session?.sessionId, "paypal", { orderId: data?.orderID });
+        handlePayPalSuccess(data?.orderID);
       },
-      onError: (err) => {
-        console.error("PayPal error", err);
+      onError: () => {
         setPaypalError("PayPal error. Please try again.");
-        setIsPayPalProcessing(false);
-      },
-      onCancel: () => {
-        setIsPayPalProcessing(false);
       },
     });
 
-    lastPayPalSessionRef.current = currentSessionKey;
-    paypalButtonsInstanceRef.current = buttons;
     buttons.render(container);
 
     return () => {
-      try {
-        buttons.close();
-      } catch {
-        /* noop */
-      }
+      try { buttons.close(); } catch {}
     };
-  }, [
-    apiBaseUrl,
-    buildPayPalPayload,
-    handlePayPalSuccess,
-    paypalConfig?.enabled,
-    paypalScriptLoaded,
-    session?.sessionId,
-  ]);
+  }, [paypalConfig, paypalScriptLoaded, session?.sessionId]);
 
   return (
     <div className="payment-step">
