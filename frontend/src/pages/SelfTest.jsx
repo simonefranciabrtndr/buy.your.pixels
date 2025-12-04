@@ -1,6 +1,25 @@
 import { useEffect, useState } from "react";
 import "./SelfTest.css";
 
+function PaypalSummary({ details }) {
+  if (!details) return null;
+  const config = details.config || {};
+  const token = details.token || {};
+  const createOrder = details.createOrder || {};
+  const sdkUrl = details.sdkUrl || {};
+  const capture = details.capture || {};
+
+  return (
+    <div className="st-accordion-body">
+      <div>config.enabled: {String(config.enabled)}</div>
+      <div>token.success: {String(token.success)}</div>
+      <div>orderId: {createOrder.orderId || "n/a"}</div>
+      <div>sdkUrl.status: {sdkUrl.status ?? "n/a"}</div>
+      <div>capture.skipped: {String(capture.skipped)}</div>
+    </div>
+  );
+}
+
 function AccordionItem({ item }) {
   const [open, setOpen] = useState(false);
   return (
@@ -10,18 +29,21 @@ function AccordionItem({ item }) {
         <span className={item.success ? "st-pass" : "st-fail"}>{item.success ? "✓" : "✕"}</span>
       </button>
       {open && (
-        <pre className="st-accordion-body">
-          {JSON.stringify(
-            {
-              success: item.success,
-              error: item.error,
-              duration_ms: item.duration_ms,
-              details: item.details,
-            },
-            null,
-            2
-          )}
-        </pre>
+        <>
+          {item.name === "paypal" && <PaypalSummary details={item.details} />}
+          <pre className="st-accordion-body">
+            {JSON.stringify(
+              {
+                success: item.success,
+                error: item.error,
+                duration_ms: item.duration_ms,
+                details: item.details,
+              },
+              null,
+              2
+            )}
+          </pre>
+        </>
       )}
       {!item.success && item.error && (
         <pre className="selftest-error-block">{JSON.stringify(item.error, null, 2)}</pre>

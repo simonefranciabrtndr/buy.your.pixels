@@ -1,5 +1,6 @@
 import { dbTest } from "./tests/dbTest.js";
 import { stripeTest } from "./tests/stripeTest.js";
+import { paypalTest } from "./tests/paypalTest.js";
 import { emailTest } from "./tests/emailTest.js";
 import { apiTest } from "./tests/apiTest.js";
 
@@ -32,6 +33,7 @@ export async function runSelfTests() {
   const tests = [
     await runWithTiming("database", dbTest),
     await runWithTiming("stripe", stripeTest),
+    await runWithTiming("paypal", paypalTest),
     await runWithTiming("email", emailTest),
     await runWithTiming("api", apiTest),
   ];
