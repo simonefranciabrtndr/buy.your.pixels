@@ -30,6 +30,8 @@ import { validateTransform } from "./utils/safeImageTransform.js";
 import { getPool } from "./purchaseStore.js";
 import { runSelfTests, getLastReport } from "./selfTest/runner.js";
 import * as paypalClient from "./paypalClient.js";
+import { sessions } from "./sessionStore.js";
+import { registerPayPalWebhook } from "./webhooks/paypalWebhook.js";
 
 const maskValue = (v) => {
   if (!v) return null;
@@ -43,7 +45,6 @@ if (!process.env.PROFILE_TOKEN_SECRET) {
 }
 const stripeClient = config.stripe.secretKey ? new Stripe(config.stripe.secretKey, { apiVersion: "2024-06-20" }) : null;
 
-const sessions = new Map();
 const purchaseDedupKeys = new Set(); // FIX: basic idempotency guard
 const developerSessions = new Map();
 const DEVELOPER_SESSION_TTL = 1000 * 60 * 60 * 12; // 12 hours
@@ -1082,6 +1083,8 @@ export const createApp = () => {
     console.error("Unhandled error", err);
     res.status(500).json({ error: "Internal server error" });
   });
+
+  registerPayPalWebhook(app);
 
   return app;
 };
