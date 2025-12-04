@@ -6,30 +6,49 @@ import { apiTest } from "./tests/apiTest.js";
 
 let lastReport = null;
 
-const runWithTiming = async (name, fn) => {
+/**
+ * In-memory history of recent self-test runs.
+ * We keep at most 50 entries, newest at the end.
+ */
+const history = [];
+
+async function runWithTiming(name, fn) {
   const startedAt = Date.now();
   try {
     const result = await fn();
+    const finishedAt = Date.now();
     return {
       name,
-      success: !!result?.success,
-      details: result?.details || result || {},
-      duration_ms: Date.now() - startedAt,
-      error: result?.success ? null : result?.error || null,
+      success: Boolean(result?.success ?? true),
+      details: result?.details ?? result ?? null,
+      duration_ms: finishedAt - startedAt,
+      error: result?.error || null,
     };
   } catch (err) {
+    const finishedAt = Date.now();
+    console.error("[self-test] test failed:", name, {
+      message: err?.message,
+      stack: err?.stack,
+    });
     return {
       name,
       success: false,
-      duration_ms: Date.now() - startedAt,
-      error: err,
-      details: {},
+      details: null,
+      duration_ms: finishedAt - startedAt,
+      error: {
+        message: err?.message || "Unknown error",
+        name: err?.name || "Error",
+      },
     };
   }
-};
+}
 
+/**
+ * Run all self tests and store both last report and history.
+ */
 export async function runSelfTests() {
   const startedAt = new Date().toISOString();
+
   const tests = [
     await runWithTiming("database", dbTest),
     await runWithTiming("stripe", stripeTest),
@@ -38,16 +57,44 @@ export async function runSelfTests() {
     await runWithTiming("api", apiTest),
   ];
 
+  const finishedAt = new Date().toISOString();
   const success = tests.every((t) => t.success);
-  lastReport = {
+
+  const report = {
     success,
     startedAt,
-    finishedAt: new Date().toISOString(),
+    finishedAt,
     tests,
   };
-  return lastReport;
+
+  lastReport = report;
+
+  // push into history (max 50 items)
+  history.push(report);
+  if (history.length > 50) {
+    history.shift();
+  }
+
+  return report;
 }
 
+/**
+ * Return the last self-test report (or a default object).
+ */
 export function getLastReport() {
-  return lastReport || { status: "no_report" };
+  if (lastReport) return lastReport;
+  return {
+    success: false,
+    startedAt: null,
+    finishedAt: null,
+    tests: [],
+  };
+}
+
+/**
+ * Return an array of historical reports.
+ * Newest report should be last in the array.
+ */
+export function getSelfTestHistory() {
+  return history.slice();
 }
