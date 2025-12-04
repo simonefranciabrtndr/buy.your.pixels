@@ -27,6 +27,9 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [paypalError, setPaypalError] = useState(null);
   const [isPayPalProcessing, setIsPayPalProcessing] = useState(false);
   const paypalButtonsRef = useRef(null);
+  const paypalButtonsInstanceRef = useRef(null);
+  const paypalScriptAppendedRef = useRef(false);
+  const lastPayPalSessionRef = useRef(null);
   const apiBaseUrl = useMemo(() => inferApiBaseUrl(), []);
 
   const areaSummary = useMemo(() => {
@@ -302,6 +305,8 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       };
     }
 
+    if (paypalScriptAppendedRef.current) return undefined;
+
     script = document.createElement("script");
     script.src = scriptUrl;
     script.async = true;
@@ -309,6 +314,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     script.addEventListener("load", handleLoad);
     script.addEventListener("error", handleError);
     document.body.appendChild(script);
+    paypalScriptAppendedRef.current = true;
 
     return () => {
       script.removeEventListener("load", handleLoad);
@@ -341,6 +347,21 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     if (!paypalConfig?.enabled || !paypalScriptLoaded || typeof window === "undefined" || !window.paypal) return undefined;
     const container = paypalButtonsRef.current;
     if (!container) return undefined;
+
+    const currentSessionKey = session?.sessionId || "no-session";
+    const alreadyRendered =
+      paypalButtonsInstanceRef.current && lastPayPalSessionRef.current === currentSessionKey;
+    if (alreadyRendered) return undefined;
+
+    if (paypalButtonsInstanceRef.current) {
+      try {
+        paypalButtonsInstanceRef.current.close();
+      } catch {
+        /* noop */
+      }
+      paypalButtonsInstanceRef.current = null;
+    }
+
     container.innerHTML = "";
 
     const buttons = window.paypal.Buttons({
@@ -405,6 +426,8 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       },
     });
 
+    lastPayPalSessionRef.current = currentSessionKey;
+    paypalButtonsInstanceRef.current = buttons;
     buttons.render(container);
 
     return () => {
@@ -418,7 +441,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     apiBaseUrl,
     buildPayPalPayload,
     handlePayPalSuccess,
-    paypalConfig,
+    paypalConfig?.enabled,
     paypalScriptLoaded,
     session?.sessionId,
   ]);

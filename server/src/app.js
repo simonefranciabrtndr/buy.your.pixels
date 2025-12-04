@@ -443,7 +443,7 @@ export const createApp = () => {
           const paymentIntent = await stripeClient.paymentIntents.create({
             amount: amountInMinor,
             currency: currency.toLowerCase(),
-            automatic_payment_methods: { enabled: true },
+            payment_method_types: ["card", "link"], // Avoid Stripe-provided PayPal; keep card/link wallets
             metadata: {
               sessionId,
               ...metadata,
