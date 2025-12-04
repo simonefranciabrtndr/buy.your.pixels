@@ -29,6 +29,7 @@ import { validateAndNormalizeURL } from "./utils/linkValidator.js";
 import { validateTransform } from "./utils/safeImageTransform.js";
 import { getPool } from "./purchaseStore.js";
 import { runSelfTests, getLastReport } from "./selfTest/runner.js";
+import * as paypalClient from "./paypalClient.js";
 
 const maskValue = (v) => {
   if (!v) return null;
@@ -217,6 +218,69 @@ const logContentRejection = ({ profileId, reason, nsfwConfidence, ip, userAgent 
     ip,
     userAgent,
   });
+};
+
+const computePriceFromExistingLogic = (body = {}) => {
+  const sessionId = body.sessionId || body.purchaseId || body.id || null;
+  const session = sessionId ? sessions.get(sessionId) : null;
+  const description = body.description || "Buy Your Pixels purchase";
+  const metadata = {
+    ...(session?.metadata || {}),
+    ...(body.metadata || {}),
+  };
+
+  if (body.area) {
+    const areaValue = body.area?.area ?? body.area;
+    if (typeof metadata.area === "undefined") {
+      metadata.area = areaValue;
+    }
+    if (body.area?.rect && typeof metadata.rect === "undefined") {
+      metadata.rect = JSON.stringify(body.area.rect);
+    }
+    if (body.area?.tiles && typeof metadata.tiles === "undefined") {
+      metadata.tiles = JSON.stringify(body.area.tiles);
+    }
+  }
+
+  if (session) {
+    const amountMajor = Number(session.amount || 0) / 100;
+    if (!Number.isFinite(amountMajor) || amountMajor <= 0) {
+      throw new Error("Invalid session amount");
+    }
+    return {
+      sessionId,
+      amount: amountMajor,
+      amountInMinor: Number(session.amount || 0),
+      currency: (session.currency || "EUR").toUpperCase(),
+      description,
+      metadata,
+    };
+  }
+
+  if (!validateCheckoutBody(body)) {
+    throw new Error("Invalid request");
+  }
+
+  const normalizedPrice = Number(body.price);
+  return {
+    sessionId,
+    amount: normalizedPrice,
+    amountInMinor: Math.round(normalizedPrice * 100),
+    currency: (body.currency || "EUR").toUpperCase(),
+    description,
+    metadata,
+  };
+};
+
+const markPurchasePaid = (sessionId, payload = {}) => {
+  if (!sessionId) return null;
+  const session = sessions.get(sessionId);
+  if (!session) return null;
+  session.status = "paid";
+  session.provider = payload.provider || session.provider || null;
+  session.confirmation = payload;
+  sessions.set(sessionId, session);
+  return session;
 };
 
 // FIX: rate limiters for auth-sensitive endpoints
@@ -454,12 +518,84 @@ export const createApp = () => {
     if (!session) {
       return res.status(404).send("Session not found");
     }
-    session.status = "paid";
-    session.provider = provider;
-    session.confirmation = req.body?.payload;
-    sessions.set(sessionId, session);
+    markPurchasePaid(sessionId, {
+      provider,
+      ...(req.body?.payload || {}),
+    });
     console.log("[checkout] Acknowledged payment session", { sessionId, provider });
     res.json({ status: "acknowledged" });
+  });
+
+  app.get("/api/paypal/config", (req, res) => {
+    const clientId = process.env.PAYPAL_CLIENT_ID || null;
+    const env = process.env.PAYPAL_ENV || "sandbox";
+
+    if (!clientId) {
+      return res.json({ enabled: false, reason: "Missing PAYPAL_CLIENT_ID" });
+    }
+
+    return res.json({
+      enabled: true,
+      clientId,
+      env,
+      currency: "EUR",
+    });
+  });
+
+  app.post("/api/paypal/create-order", checkoutRateLimit, async (req, res) => {
+    try {
+      const { amount, currency, description, metadata, sessionId } = computePriceFromExistingLogic(req.body);
+      const customId =
+        typeof metadata === "string"
+          ? metadata
+          : metadata?.sessionId || metadata?.orderId || sessionId || null;
+
+      const order = await paypalClient.createOrder({
+        amount,
+        currency,
+        description,
+        metadata: customId ? String(customId) : undefined,
+      });
+
+      if (sessionId && order?.id) {
+        const session = sessions.get(sessionId);
+        if (session) {
+          session.providers = {
+            ...(session.providers || {}),
+            paypal: order.id,
+          };
+          sessions.set(sessionId, session);
+        }
+      }
+
+      return res.json({ success: true, orderId: order.id, status: order.status });
+    } catch (err) {
+      console.error("PayPal create-order error:", err);
+      return res.json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/paypal/capture-order", async (req, res) => {
+    try {
+      const { orderId, purchaseId } = req.body || {};
+      if (!orderId) {
+        return res.status(400).json({ success: false, error: "Missing orderId" });
+      }
+
+      const cap = await paypalClient.captureOrder(orderId);
+
+      markPurchasePaid(purchaseId, {
+        provider: "paypal",
+        transactionId: cap.id,
+        status: cap.status,
+        payerEmail: cap.payerEmail,
+      });
+
+      return res.json({ success: true, orderId: cap.id, status: cap.status, payerEmail: cap.payerEmail || null });
+    } catch (err) {
+      console.error("PayPal capture error:", err);
+      return res.json({ success: false, error: err.message });
+    }
   });
 
   app.post("/api/presence/heartbeat", (req, res) => {
