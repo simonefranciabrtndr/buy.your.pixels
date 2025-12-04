@@ -95,8 +95,8 @@ export default function SelfTest() {
   const tests = report?.tests || [];
 
   return (
-    <div className="st-page">
-      <div className="st-card">
+    <div className="selftest-page">
+      <div className="selftest-card">
         <div className="st-status">
           <div className={`st-icon ${overallPass ? "st-icon-pass" : "st-icon-fail"}`}>
             {overallPass ? "✓" : "✕"}
