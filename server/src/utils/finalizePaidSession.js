@@ -35,7 +35,7 @@ export async function finalizePaidSession({ sessionId, provider, transactionId, 
       (rect && Object.keys(rect).length ? [rect] : []);
 
     if (!rect || !tiles.length) {
-      return { success: true, stored: false, reason: "Missing rect/tiles" };
+      return { success: false, reason: "invalid-payload" };
     }
 
     const price = Number((session.amount || 0) / 100);
@@ -45,7 +45,7 @@ export async function finalizePaidSession({ sessionId, provider, transactionId, 
       Number(session.area?.areaValue) ||
       0;
 
-    await recordPurchase({
+    const result = await recordPurchase({
       id: sessionId,
       rect,
       tiles,
@@ -59,8 +59,23 @@ export async function finalizePaidSession({ sessionId, provider, transactionId, 
       paymentIntentId: transactionId,
       profileId: session.profileId || null,
     });
+    if (result?.duplicate) {
+      console.warn("[finalizePaidSession] duplicate purchase ignored", { sessionId });
+      return { success: true, alreadyPaid: true, persisted: false, reason: "duplicate" };
+    }
+    if (result) {
+      console.log("[finalizePaidSession] persisted purchase", { sessionId, provider });
+    } else {
+      console.warn("[finalizePaidSession] duplicate purchase ignored", { sessionId });
+      return { success: true, alreadyPaid: true, persisted: false, reason: "duplicate" };
+    }
   } catch (err) {
-    console.error("[paypal-webhook] finalizePaidSession persist error", err);
+    if (err?.code === "23505") {
+      console.warn("[finalizePaidSession] duplicate purchase ignored", { sessionId });
+      return { success: true, alreadyPaid: true, persisted: false, reason: "duplicate" };
+    }
+    console.error("[finalizePaidSession] persist error", { message: err?.message || "unknown", sessionId });
+    return { success: false, error: err?.message || "persist_failed" };
   }
 
   return { success: true };

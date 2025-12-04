@@ -1,7 +1,7 @@
+import express from "express";
 import fetch from "node-fetch";
 import { finalizePaidSession } from "../utils/finalizePaidSession.js";
 import { getAccessToken } from "../paypalClient.js";
-import { sessions } from "../sessionStore.js";
 
 const getBaseUrl = () => {
   const env = (process.env.PAYPAL_ENV || "sandbox").toLowerCase();
@@ -21,11 +21,17 @@ export function registerPayPalWebhook(app) {
     return;
   }
 
-  app.post("/api/webhooks/paypal", async (req, res) => {
+  app.post("/api/webhooks/paypal", express.raw({ type: "application/json" }), async (req, res) => {
     try {
       const baseUrl = getBaseUrl();
-      const body = req.body;
-      const rawBody = typeof body === "string" ? body : JSON.stringify(body || {});
+      const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from("");
+      req.rawBody = rawBody;
+      let body = {};
+      try {
+        body = JSON.parse(rawBody.toString("utf8") || "{}");
+      } catch {
+        body = {};
+      }
 
       const transmissionId = req.get("paypal-transmission-id");
       const transmissionTime = req.get("paypal-transmission-time");
@@ -83,12 +89,13 @@ export function registerPayPalWebhook(app) {
             const customId = purchaseUnit?.custom_id || purchaseUnit?.reference_id || null;
 
             if (captureStatus && ["COMPLETED", "CAPTURED"].includes(captureStatus.toUpperCase()) && customId) {
-              await finalizePaidSession({
+              const result = await finalizePaidSession({
                 sessionId: customId,
                 provider: "paypal",
                 transactionId: capture?.id || orderId,
                 payerEmail,
               });
+              console.log("[paypal-webhook] finalize result", result);
             }
           } catch (err) {
             console.error("[paypal-webhook] order fetch error", sanitizeError(err));

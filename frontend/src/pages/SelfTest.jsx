@@ -56,6 +56,7 @@ export default function SelfTest() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [history, setHistory] = useState([]);
 
   const loadReport = async (forceRun = false) => {
     setLoading(true);
@@ -74,6 +75,20 @@ export default function SelfTest() {
 
   useEffect(() => {
     loadReport(false);
+  }, []);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      try {
+        const res = await fetch("/api/self-test/history");
+        const data = await res.json();
+        setHistory(Array.isArray(data?.history) ? data.history : []);
+      } catch {
+        setHistory([]);
+        setError((prev) => prev || "History unavailable");
+      }
+    };
+    loadHistory();
   }, []);
 
   const overallPass = report?.success;
@@ -102,6 +117,26 @@ export default function SelfTest() {
         {report?.startedAt && (
           <div className="st-meta">Last run: {new Date(report.startedAt).toLocaleString()}</div>
         )}
+        <div className="paypal-health">
+          <div className="paypal-health-header">
+            <span>PayPal health</span>
+            <div className="paypal-health-legend">
+              <span className="dot ok" /> OK
+              <span className="dot warn" /> Partial
+              <span className="dot fail" /> Fail
+            </div>
+          </div>
+          <div className="paypal-health-graph">
+            {history.map((entry, idx) => {
+              const allOk = entry.paypalSuccess && entry.paypalSdkOk && entry.paypalCreateOk;
+              const partial =
+                entry.paypalSuccess && (!entry.paypalSdkOk || !entry.paypalCreateOk);
+              const cls = allOk ? "ok" : partial ? "warn" : "fail";
+              return <div key={idx} className={`paypal-health-bar ${cls}`} title={entry.timestamp} />;
+            })}
+            {!history.length && <div className="paypal-health-empty">No history</div>}
+          </div>
+        </div>
         {error && <div className="st-error">{error}</div>}
         <div className="st-accordion">
           {tests.map((t) => (

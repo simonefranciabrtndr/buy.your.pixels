@@ -28,7 +28,7 @@ import { analyzeImageSafety } from "./utils/imageSafety.js";
 import { validateAndNormalizeURL } from "./utils/linkValidator.js";
 import { validateTransform } from "./utils/safeImageTransform.js";
 import { getPool } from "./purchaseStore.js";
-import { runSelfTests, getLastReport } from "./selfTest/runner.js";
+import { runSelfTests, getLastReport, getSelfTestHistory } from "./selfTest/runner.js";
 import * as paypalClient from "./paypalClient.js";
 import { sessions } from "./sessionStore.js";
 import { registerPayPalWebhook } from "./webhooks/paypalWebhook.js";
@@ -381,6 +381,10 @@ export const createApp = () => {
 
   app.get("/api/self-test/report", selfTestRateLimit, (_req, res) => {
     res.json(getLastReport());
+  });
+
+  app.get("/api/self-test/history", selfTestRateLimit, (_req, res) => {
+    res.json({ history: getSelfTestHistory() });
   });
 
   app.get("/api/self-test/quick", selfTestRateLimit, (_req, res) => {
@@ -849,6 +853,63 @@ export const createApp = () => {
     } catch (error) {
       console.error("Failed to load purchases", error);
       res.status(500).send("Unable to load purchases");
+    }
+  });
+
+  app.get("/api/admin/orders", async (req, res) => {
+    try {
+      const adminKey = process.env.ADMIN_API_KEY;
+      if (!adminKey) {
+        return res.status(500).json({ error: "Admin access not configured" });
+      }
+      const providedKey = req.get("x-admin-key");
+      if (!providedKey || providedKey !== adminKey) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      let pool;
+      try {
+        pool = getPool();
+      } catch {
+        return res.status(503).json({ error: "Database unavailable" });
+      }
+
+      const limit = 200;
+      const query = `
+        SELECT id, created_at, price, area, link, nsfw, profile_id, payment_intent_id,
+               rect, tiles, preview_data, uploaded_image, image_transform
+        FROM purchases
+        WHERE deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT $1
+      `;
+      const { rows } = await pool.query(query, [limit]);
+
+      const normalizeProvider = (paymentId) => {
+        if (!paymentId) return "unknown";
+        const lower = String(paymentId).toLowerCase();
+        if (lower.startsWith("pi_")) return "stripe";
+        if (!lower.startsWith("pi_")) return "paypal";
+        return "unknown";
+      };
+
+      const orders = rows.map((row) => ({
+        id: row.id,
+        createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
+        price: Number(row.price || 0),
+        area: Number(row.area || 0),
+        link: row.link || null,
+        provider: normalizeProvider(row.payment_intent_id),
+        paymentId: row.payment_intent_id || null,
+        nsfw: row.nsfw,
+        profileId: row.profile_id || null,
+        raw: row,
+      }));
+
+      return res.json({ orders });
+    } catch (err) {
+      console.error("[admin-orders] failed", { message: err?.message || "unknown" });
+      return res.status(500).json({ error: "Unable to load orders" });
     }
   });
 

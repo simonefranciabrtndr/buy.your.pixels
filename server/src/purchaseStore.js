@@ -97,43 +97,52 @@ export const recordPurchase = async (purchase) => {
     purchase.profileId || null,
   ];
 
-  const { rows } = await safeQuery(
-    db,
-    `
-      INSERT INTO purchases (
-        id,
-        rect,
-        tiles,
-        area,
-        price,
-        link,
-        uploaded_image,
-        image_transform,
-        preview_data,
-        nsfw,
-        payment_intent_id,
-        profile_id
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-      ON CONFLICT (id)
-      DO UPDATE SET
-        rect = EXCLUDED.rect,
-        tiles = EXCLUDED.tiles,
-        area = EXCLUDED.area,
-        price = EXCLUDED.price,
-        link = EXCLUDED.link,
-        uploaded_image = EXCLUDED.uploaded_image,
-        image_transform = EXCLUDED.image_transform,
-        preview_data = EXCLUDED.preview_data,
-        nsfw = EXCLUDED.nsfw,
-        payment_intent_id = COALESCE(EXCLUDED.payment_intent_id, purchases.payment_intent_id),
-        profile_id = COALESCE(EXCLUDED.profile_id, purchases.profile_id)
-      RETURNING *;
-    `,
-    values
-  );
+  try {
+    const { rows } = await safeQuery(
+      db,
+      `
+        INSERT INTO purchases (
+          id,
+          rect,
+          tiles,
+          area,
+          price,
+          link,
+          uploaded_image,
+          image_transform,
+          preview_data,
+          nsfw,
+          payment_intent_id,
+          profile_id
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        ON CONFLICT (id)
+        DO UPDATE SET
+          rect = EXCLUDED.rect,
+          tiles = EXCLUDED.tiles,
+          area = EXCLUDED.area,
+          price = EXCLUDED.price,
+          link = EXCLUDED.link,
+          uploaded_image = EXCLUDED.uploaded_image,
+          image_transform = EXCLUDED.image_transform,
+          preview_data = EXCLUDED.preview_data,
+          nsfw = EXCLUDED.nsfw,
+          payment_intent_id = COALESCE(EXCLUDED.payment_intent_id, purchases.payment_intent_id),
+          profile_id = COALESCE(EXCLUDED.profile_id, purchases.profile_id)
+        RETURNING *;
+      `,
+      values
+    );
 
-  return normalizePurchase(rows[0]);
+    return normalizePurchase(rows[0]);
+  } catch (err) {
+    if (err?.code === "23505") {
+      const { rows: existingRows } = await safeQuery(db, "SELECT * FROM purchases WHERE id = $1 LIMIT 1", [purchaseId]);
+      const existing = existingRows?.[0] ? normalizePurchase(existingRows[0]) : null;
+      return existing ? { ...existing, duplicate: true } : null;
+    }
+    throw err;
+  }
 };
 
 export const listPurchases = async () => {
