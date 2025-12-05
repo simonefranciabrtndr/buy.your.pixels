@@ -1136,6 +1136,8 @@ export const createApp = () => {
     });
   });
 
+  registerPayPalWebhook(app);
+
   app.use((_req, res) => {
     res.status(404).json({ error: "Not found" });
   });
@@ -1144,8 +1146,6 @@ export const createApp = () => {
     console.error("Unhandled error", err);
     res.status(500).json({ error: "Internal server error" });
   });
-
-  registerPayPalWebhook(app);
 
   return app;
 };
