@@ -448,13 +448,7 @@ export const createApp = () => {
           const paymentIntent = await stripeClient.paymentIntents.create({
             amount: amountInMinor,
             currency: currency.toLowerCase(),
-            payment_method_types: [
-              "card",
-              "link",
-              "revolut_pay",
-              "klarna",
-              "google_pay",
-            ], // Avoid Stripe-provided PayPal; keep card/link wallets
+            payment_method_types: ["card", "link", "revolut_pay"], // Avoid Stripe-provided PayPal; keep card/link wallets
             metadata: {
               sessionId,
               ...metadata,
