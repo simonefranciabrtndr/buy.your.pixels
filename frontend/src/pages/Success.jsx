@@ -1,11 +1,57 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import "./Success.css";
+
+const isFiniteNumber = (val) => Number.isFinite(Number(val));
+
+const sanitizeRect = (rect) => {
+  if (!rect || typeof rect !== "object") return null;
+  const x = Number(rect.x);
+  const y = Number(rect.y);
+  const w = Number(rect.w);
+  const h = Number(rect.h);
+  if ([x, y, w, h].some((v) => !Number.isFinite(v) || v <= 0)) return null;
+  return { x, y, w, h };
+};
+
+const sanitizeTiles = (tiles, fallbackRect) => {
+  const arr = Array.isArray(tiles) ? tiles : [];
+  const cleaned = arr
+    .map(sanitizeRect)
+    .filter(Boolean);
+  if (cleaned.length) return cleaned;
+  if (fallbackRect) return [fallbackRect];
+  return [];
+};
+
+const sanitizeLink = (link) => {
+  if (!link || typeof link !== "string") return null;
+  const trimmed = link.trim();
+  if (!trimmed) return null;
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  return trimmed;
+};
+
+const sanitizeUploadedImage = (value) => {
+  if (!value || typeof value !== "string") return null;
+  const lowered = value.toLowerCase();
+  const unsafe =
+    lowered.includes("<script") ||
+    lowered.includes("<svg") ||
+    lowered.includes("<html") ||
+    lowered.includes("javascript:") ||
+    lowered.startsWith("data:text/html") ||
+    lowered.startsWith("data:text/svg");
+  if (unsafe) return null;
+  return value;
+};
 
 export default function SuccessPage() {
   const [params] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const [saveMessage, setSaveMessage] = useState(null);
+  const saveAttemptedRef = useRef(false);
   const stateData = location.state || {};
   const orderId = params.get("order");
   const queryValue = params.get("value");
@@ -68,6 +114,106 @@ export default function SuccessPage() {
 
   const orderRef = transactionId || params.get("orderRef") || "#ThankYou";
 
+  const parseJsonParam = (key) => {
+    const raw = params.get(key);
+    if (!raw) return null;
+    try {
+      return JSON.parse(decodeURIComponent(raw));
+    } catch {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (saveAttemptedRef.current) return;
+    if (!orderId) return;
+
+    const selectionRaw = typeof window !== "undefined" ? localStorage.getItem("yp_last_selection") : null;
+    let selection = null;
+    try {
+      selection = selectionRaw ? JSON.parse(selectionRaw) : null;
+    } catch {
+      selection = null;
+    }
+
+    const paramRect = parseJsonParam("rect");
+    const paramTiles = parseJsonParam("tiles");
+    const paramPreview = parseJsonParam("preview");
+    const paramTransform = parseJsonParam("imageTransform");
+    const paramUpload = parseJsonParam("uploadedImage");
+    const paramLink = params.get("link");
+
+    const rect = sanitizeRect(selection?.rect) || sanitizeRect(paramRect);
+    const tiles = sanitizeTiles(selection?.tiles || paramTiles, rect);
+    const areaVal = Number(
+      selection?.area ??
+        paramRect?.area ??
+        paramTiles?.area ??
+        queryPixels ??
+        params.get("area") ??
+        0
+    );
+    const priceVal = Number(
+      Number.isFinite(totalEUR) ? totalEUR : selection?.price ?? queryValue ?? 0
+    );
+
+    const link = sanitizeLink(selection?.link || paramLink);
+    const uploadedImage = sanitizeUploadedImage(selection?.uploadedImage || paramUpload);
+    const imageTransform = selection?.imageTransform || paramTransform || null;
+    const previewData = selection?.previewData || paramPreview || null;
+
+    if (!rect || !tiles.length || !isFiniteNumber(areaVal) || areaVal <= 0 || !isFiniteNumber(priceVal)) {
+      setSaveMessage("Purchase saved, but automatic grid update failed.");
+      return;
+    }
+
+    saveAttemptedRef.current = true;
+
+    const payload = {
+      id: orderId,
+      rect,
+      tiles,
+      area: areaVal,
+      price: priceVal,
+      link,
+      uploadedImage,
+      imageTransform,
+      previewData,
+      provider: "paypal",
+    };
+
+    // eslint-disable-next-line no-console
+    console.log("[success] purchase payload", payload);
+
+    const submit = async () => {
+      try {
+        const res = await fetch("https://api.yourpixels.online/api/purchases", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          await res.json().catch(() => ({}));
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("yp_last_selection");
+          }
+          setSaveMessage(null);
+        } else {
+          setSaveMessage("Purchase saved, but automatic grid update failed.");
+        }
+      } catch {
+        setSaveMessage("Purchase saved, but automatic grid update failed.");
+      }
+    };
+
+    submit();
+  }, [orderId, params, queryPixels, queryValue, totalEUR]);
+
   return (
     <div className="success-page">
       <div className="success-overlay" />
@@ -96,6 +242,7 @@ export default function SuccessPage() {
             </div>
           )}
         </div>
+        {saveMessage && <p className="success-subtitle">{saveMessage}</p>}
 
         <div className="success-actions">
           <a className="btn-primary" href="https://yourpixels.online">

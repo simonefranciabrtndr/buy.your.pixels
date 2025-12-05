@@ -31,20 +31,28 @@ const truncateText = (value, maxLength) => {
 const DEFAULT_TRANSFORM = { x: 0, y: 0, width: 1, height: 1 };
 const SAFE_MARGIN = 24;
 
-/**
- * SelectionPopup
- *
- * This component drives the buying flow for a selected region on the canvas.
- * It offers multiple steps: summary, upload, link, editing, final and payment.
- *
- * Requirements from the user:
- * 1. When the selected region lies on the right half of the screen, the popup should
- *    appear on the left side of the viewport; otherwise it appears on the right.
- * 2. After clicking the preview button (now labelled "Edit"), an editing interface
- *    appears where the user can drag and resize the uploaded image inside a
- *    miniature preview proportional to the selected pixel area. Buttons to stop
- *    or finish editing return to the final step with the pay button.
- */
+const sanitizeLink = (link) => {
+  if (!link || typeof link !== "string") return null;
+  const trimmed = link.trim();
+  if (!trimmed) return null;
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  return trimmed;
+};
+
+const sanitizeUploadedImage = (value) => {
+  if (!value || typeof value !== "string") return null;
+  const lowered = value.toLowerCase();
+  const unsafe =
+    lowered.includes("<script") ||
+    lowered.includes("<svg") ||
+    lowered.includes("<html") ||
+    lowered.includes("javascript:") ||
+    lowered.startsWith("data:text/html") ||
+    lowered.startsWith("data:text/svg");
+  if (unsafe) return null;
+  return value;
+};
+
 export default function SelectionPopup({
   area,
   price,
@@ -244,7 +252,6 @@ export default function SelectionPopup({
     },
     []
   );
-
 
   const popupStyle = popupPosition
     ? {
@@ -485,18 +492,39 @@ export default function SelectionPopup({
   }
 
   const trimmedLink = (link || "").trim();
+  const safeLink = sanitizeLink(trimmedLink);
 
   const buildFinalizePayload = () => ({
     rect: bounds,
-    tiles: areaTiles,
+    tiles: areaTiles && areaTiles.length ? areaTiles : bounds ? [bounds] : [],
     area: totalAreaPixels,
-    link: trimmedLink,
+    link: safeLink,
     price,
-    uploadedImage,
+    uploadedImage: sanitizeUploadedImage(uploadedImage),
     imageTransform,
     nsfw: isNsfw,
     previewData: linkPreviewStatus === "success" ? linkPreviewData : null,
   });
+
+  useEffect(() => {
+    if (step === "payment" && typeof window !== "undefined") {
+      const payload = buildFinalizePayload();
+      if (!payload.rect || !payload.tiles?.length || !payload.area || !payload.price) {
+        return;
+      }
+      try {
+        localStorage.setItem(
+          "yp_last_selection",
+          JSON.stringify({
+            ...payload,
+            tiles: payload.tiles,
+          })
+        );
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }, [step, bounds, areaTiles, totalAreaPixels, price, linkPreviewStatus, linkPreviewData, imageTransform, uploadedImage, safeLink]);
 
   const handlePaymentSuccess = (paymentInfo) => {
     if (onFinalizePurchase) {
@@ -869,9 +897,9 @@ export default function SelectionPopup({
         <div className={popupClassName} ref={popupRef} style={popupStyle}>
           <button className="close-btn" onClick={handleClose}>×</button>
           <div className="popup-body">
-              <PaymentStep
-                area={area}
-                price={totalPriceEUR}
+            <PaymentStep
+              area={area}
+              price={totalPriceEUR}
               onBack={() => setStep("final")}
               onCancel={handleClose}
               onSuccess={handlePaymentSuccess}
@@ -880,7 +908,7 @@ export default function SelectionPopup({
         </div>
       </>
     );
-}
+  }
 
   return null;
 }
