@@ -6,12 +6,14 @@ import SuccessPage from "./pages/Success";
 import FailedPage from "./pages/Failed";
 import SelfTest from "./pages/SelfTest";
 import AdminOrders from "./pages/AdminOrders.jsx";
+import StripeReturn from "./pages/StripeReturn";
 
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/social-login" element={<SocialLogin />} />
       <Route path="/success" element={<SuccessPage />} />
+      <Route path="/payment/stripe/return" element={<StripeReturn />} />
       <Route path="/failed" element={<FailedPage />} />
       <Route path="/self-test" element={<SelfTest />} />
       <Route path="/admin/orders" element={<AdminOrders />} />

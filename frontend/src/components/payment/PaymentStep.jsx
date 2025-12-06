@@ -183,7 +183,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
     // Build return_url for redirect-based methods (Revolut Pay, 3DS, etc.)
     const returnUrl = new URL("https://yourpixels.online/payment/stripe/return");
-    returnUrl.searchParams.set("session", session.sessionId);
+    returnUrl.searchParams.set("session_id", session.sessionId);
 
     try {
       const { error: stripeError, paymentIntent } = await stripeApi.stripe.confirmPayment({
@@ -218,11 +218,20 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
         return;
       }
 
-      // For redirect-based methods (e.g. Revolut Pay), Stripe may handle navigation via return_url.
-      // In that case paymentIntent might be null here and finalization happens on /payment/stripe/return.
-      if (!paymentIntent) {
+      // Handle redirect-based methods (e.g. Revolut Pay) explicitly
+      if (paymentIntent?.status === "requires_action" && paymentIntent?.next_action?.type === "redirect_to_url") {
+        const clientSecret = paymentIntent.client_secret || stripeInfo?.clientSecret || "";
+        const redirectUrl =
+          `https://api.stripe.com/redirect/confirm?payment_intent=${encodeURIComponent(paymentIntent.id)}` +
+          `&payment_intent_client_secret=${encodeURIComponent(clientSecret)}` +
+          `&session_id=${encodeURIComponent(session.sessionId)}` +
+          `&return_url=${encodeURIComponent(`${window.location.origin}/payment/stripe/return`)}`;
+        window.location.href = redirectUrl;
         return;
       }
+
+      // For other redirect flows handled entirely by Stripe (rare), paymentIntent might be null.
+      if (!paymentIntent) return;
 
       // Non-redirect flows: acknowledge + go to success
       try {

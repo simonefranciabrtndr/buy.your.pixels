@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { acknowledgePayment } from "../api/checkout";
 
@@ -6,35 +6,53 @@ export default function StripeReturn() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paymentIntentId = params.get("payment_intent");
-    const redirectStatus = params.get("redirect_status");
-    const sessionId = params.get("session") || params.get("state");
+    const finalize = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const paymentIntent = params.get("payment_intent");
+      const clientSecret = params.get("payment_intent_client_secret");
+      const sessionId = params.get("session_id");
 
-    if (!paymentIntentId || !sessionId || redirectStatus !== "succeeded") {
-      navigate("/failed", {
-        replace: true,
-        state: { reason: "Stripe redirect payment failed" },
-      });
-      return;
-    }
-
-    acknowledgePayment(sessionId, "stripe", { paymentIntentId })
-      .catch(() => {})
-      .finally(() => {
-        const query = new URLSearchParams({ order: sessionId }).toString();
-        navigate(`/success?${query}`, {
-          replace: true,
-          state: { orderId: sessionId },
+      if (!paymentIntent || !clientSecret) {
+        return navigate("/failed", {
+          state: { reason: "Invalid Stripe return data" },
         });
-      });
+      }
+
+      try {
+        const stripe = window.Stripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+        const result = await stripe.retrievePaymentIntent(clientSecret);
+
+        if (result?.paymentIntent?.status === "succeeded") {
+          if (sessionId) {
+            await acknowledgePayment(sessionId, "stripe", {
+              paymentIntentId: paymentIntent,
+            });
+          }
+
+          navigate(
+            "/success?" +
+              new URLSearchParams({
+                order: sessionId || paymentIntent,
+              }).toString()
+          );
+        } else {
+          navigate("/failed", {
+            state: { reason: "Payment not completed" },
+          });
+        }
+      } catch (err) {
+        navigate("/failed", {
+          state: { reason: err.message || "Stripe Return Error" },
+        });
+      }
+    };
+
+    finalize();
   }, [navigate]);
 
   return (
-    <div className="payment-step">
-      <h3>Finalizing payment…</h3>
-      <p className="payment-step-sub">Please wait while we confirm your transaction.</p>
-      <div className="payment-loader">Checking payment status…</div>
+    <div style={{ padding: "40px", color: "#fff" }}>
+      Finalizing payment…
     </div>
   );
 }
