@@ -24,18 +24,38 @@ const jsonFetch = async (path, options = {}) => {
 
 export const createCheckoutSession = async ({ area, price, currency = "eur", metadata = {} }) => {
   const amount = Number(price || 0);
+
+  // --- SAFE NORMALIZATION ---
+  const safeRect =
+    area?.rect && typeof area.rect === "object"
+      ? JSON.stringify(area.rect)
+      : null;
+
+  const safeTiles =
+    area?.tiles && Array.isArray(area.tiles)
+      ? JSON.stringify(area.tiles)
+      : null;
+
+  const safeArea =
+    typeof area?.area === "number"
+      ? area.area
+      : area?.rect?.w && area?.rect?.h
+      ? area.rect.w * area.rect.h
+      : 0;
+
   const payload = {
-    area,
+    area: area || null,
     price: amount,
     currency,
     metadata: {
-      ...metadata,
-      rect: area?.rect ? JSON.stringify(area.rect) : undefined,
-      tiles: area?.tiles ? JSON.stringify(area.tiles) : undefined,
-      area: area?.area ?? area?.rect?.w * area?.rect?.h ?? 0,
+      rect: safeRect,
+      tiles: safeTiles,
+      area: safeArea,
       price: amount,
+      ...metadata,
     },
   };
+
   return jsonFetch("/checkout/session", {
     method: "POST",
     body: JSON.stringify(payload),
