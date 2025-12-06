@@ -4,6 +4,8 @@ import { createCheckoutSession, acknowledgePayment } from "../../api/checkout";
 import { loadStripeJs } from "./stripeLoader";
 import { useCurrency } from "../../context/CurrencyContext";
 import inferApiBaseUrl from "../../api/baseUrl";
+import { loadStripe } from "@stripe/stripe-js";
+import { PaymentRequestButtonElement } from "@stripe/react-stripe-js";
 
 const PAYMENT_CURRENCY = "EUR";
 
@@ -31,6 +33,9 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const paypalScriptAppendedRef = useRef(false);
   const lastPayPalSessionRef = useRef(null);
   const apiBaseUrl = useMemo(() => inferApiBaseUrl(), []);
+  const [googlePayReady, setGooglePayReady] = useState(false);
+  const [method, setMethod] = useState("stripe");
+  const paymentRequestRef = useRef(null);
 
   const areaSummary = useMemo(() => {
     const pixels = Math.round(area?.area || 0);
@@ -121,6 +126,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
         }
         if (cancelled) return;
         setStripeApi({ stripe, elements, paymentElement: null });
+        paymentRequestRef.current = null;
       })
       .catch((err) => {
         console.error("Stripe SDK error", err);
@@ -145,6 +151,32 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       setStripeApi((prev) => ({ ...prev, paymentElement: null }));
     };
   }, [stripeApi.elements]);
+
+  useEffect(() => {
+    const stripe = stripeApi.stripe;
+    if (!stripe) return;
+    const detectGooglePay = async () => {
+      try {
+        const pr = stripe.paymentRequest({
+          country: "IT",
+          currency: "eur",
+          total: { label: "Buy Your Pixels", amount: Math.round(totalPriceEUR * 100) },
+        });
+        const result = await pr.canMakePayment();
+        if (result && result.googlePay) {
+          paymentRequestRef.current = pr;
+          setGooglePayReady(true);
+        } else {
+          setGooglePayReady(false);
+          paymentRequestRef.current = null;
+        }
+      } catch {
+        setGooglePayReady(false);
+        paymentRequestRef.current = null;
+      }
+    };
+    detectGooglePay();
+  }, [stripeApi.stripe, totalPriceEUR]);
 
   const buildPayPalPayload = useCallback(() => {
     const normalizedPrice = Number(price || 0);
@@ -254,6 +286,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
   const showStripe = Boolean(stripeInfo?.clientSecret && stripeInfo?.publishableKey);
   const stripeReady = Boolean(showStripe && stripeApi.paymentElement);
+  const googlePayAvailable = googlePayReady && paymentRequestRef.current;
 
   useEffect(() => {
     let cancelled = false;
@@ -420,6 +453,24 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
           {showStripe && (
             <div className="payment-provider-card">
               <h4>Card / Apple Pay / Google Pay</h4>
+              {googlePayReady && (
+                <div className="method-tabs" style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                  <button
+                    type="button"
+                    className={`popup-skip method-tab ${method === "stripe" ? "active" : ""}`}
+                    onClick={() => setMethod("stripe")}
+                  >
+                    Card / Link
+                  </button>
+                  <button
+                    type="button"
+                    className={`popup-skip method-tab ${method === "google_pay" ? "active" : ""}`}
+                    onClick={() => setMethod("google_pay")}
+                  >
+                    Google Pay
+                  </button>
+                </div>
+              )}
               <div
                 style={{
                   padding: "16px",
@@ -429,13 +480,19 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
                   marginBottom: "12px",
                 }}
               >
-                <div ref={paymentElementRef} style={{ minHeight: "80px" }} />
-                {!stripeReady && <div className="payment-loader">Preparing card methods…</div>}
+                {method === "google_pay" && googlePayAvailable ? (
+                  <PaymentRequestButtonElement options={{ paymentRequest: paymentRequestRef.current }} />
+                ) : (
+                  <>
+                    <div ref={paymentElementRef} style={{ minHeight: "80px" }} />
+                    {!stripeReady && <div className="payment-loader">Preparing card methods…</div>}
+                  </>
+                )}
               </div>
               <button
                 type="button"
                 className="popup-continue"
-                disabled={stripeProcessing || !stripeReady}
+                disabled={stripeProcessing || (!stripeReady && !(method === "google_pay" && googlePayAvailable))}
                 onClick={handleStripePay}
               >
                 {stripeProcessing ? "Processing…" : "Pay with card"}
