@@ -4,7 +4,6 @@ import { createCheckoutSession, acknowledgePayment } from "../../api/checkout";
 import { loadStripeJs } from "./stripeLoader";
 import { useCurrency } from "../../context/CurrencyContext";
 import inferApiBaseUrl from "../../api/baseUrl";
-import { loadStripe } from "@stripe/stripe-js";
 import { PaymentRequestButtonElement } from "@stripe/react-stripe-js";
 
 const PAYMENT_CURRENCY = "EUR";
@@ -33,7 +32,8 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const paypalScriptAppendedRef = useRef(false);
   const lastPayPalSessionRef = useRef(null);
   const apiBaseUrl = useMemo(() => inferApiBaseUrl(), []);
-  const [googlePayReady, setGooglePayReady] = useState(false);
+  const [googlePayAvailable, setGooglePayAvailable] = useState(false);
+  const [paymentRequestAvailable, setPaymentRequestAvailable] = useState(false);
   const [method, setMethod] = useState("stripe");
   const paymentRequestRef = useRef(null);
 
@@ -154,28 +154,40 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
   useEffect(() => {
     const stripe = stripeApi.stripe;
-    if (!stripe) return;
-    const detectGooglePay = async () => {
+    const makeRequest = async () => {
+      if (!stripe) {
+        setGooglePayAvailable(false);
+        setPaymentRequestAvailable(false);
+        paymentRequestRef.current = null;
+        return;
+      }
       try {
         const pr = stripe.paymentRequest({
           country: "IT",
           currency: "eur",
           total: { label: "Buy Your Pixels", amount: Math.round(totalPriceEUR * 100) },
         });
+        paymentRequestRef.current = pr;
+        setPaymentRequestAvailable(true);
         const result = await pr.canMakePayment();
-        if (result && result.googlePay) {
-          paymentRequestRef.current = pr;
-          setGooglePayReady(true);
-        } else {
-          setGooglePayReady(false);
-          paymentRequestRef.current = null;
+        if (!result || !result.googlePay) {
+          setGooglePayAvailable(false);
+          console.log("[pay] Google Pay available:", false);
+          console.log("[pay] PaymentRequest active:", true);
+          return;
         }
+        setGooglePayAvailable(true);
+        console.log("[pay] Google Pay available:", true);
+        console.log("[pay] PaymentRequest active:", true);
       } catch {
-        setGooglePayReady(false);
+        setGooglePayAvailable(false);
+        setPaymentRequestAvailable(false);
         paymentRequestRef.current = null;
+        console.log("[pay] Google Pay available:", false);
+        console.log("[pay] PaymentRequest active:", false);
       }
     };
-    detectGooglePay();
+    makeRequest();
   }, [stripeApi.stripe, totalPriceEUR]);
 
   const buildPayPalPayload = useCallback(() => {
@@ -286,8 +298,6 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
   const showStripe = Boolean(stripeInfo?.clientSecret && stripeInfo?.publishableKey);
   const stripeReady = Boolean(showStripe && stripeApi.paymentElement);
-  const googlePayAvailable = googlePayReady && paymentRequestRef.current;
-
   useEffect(() => {
     let cancelled = false;
     const loadConfig = async () => {
@@ -453,7 +463,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
           {showStripe && (
             <div className="payment-provider-card">
               <h4>Card / Apple Pay / Google Pay</h4>
-              {googlePayReady && (
+              {googlePayAvailable && paymentRequestAvailable && (
                 <div className="method-tabs" style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
                   <button
                     type="button"
@@ -480,7 +490,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
                   marginBottom: "12px",
                 }}
               >
-                {method === "google_pay" && googlePayAvailable ? (
+                {method === "google_pay" && googlePayAvailable && paymentRequestAvailable ? (
                   <PaymentRequestButtonElement options={{ paymentRequest: paymentRequestRef.current }} />
                 ) : (
                   <>
@@ -492,7 +502,10 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
               <button
                 type="button"
                 className="popup-continue"
-                disabled={stripeProcessing || (!stripeReady && !(method === "google_pay" && googlePayAvailable))}
+                disabled={
+                  stripeProcessing ||
+                  (!stripeReady && !(method === "google_pay" && googlePayAvailable && paymentRequestAvailable))
+                }
                 onClick={handleStripePay}
               >
                 {stripeProcessing ? "Processing…" : "Pay with card"}
