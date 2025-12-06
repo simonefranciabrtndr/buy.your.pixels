@@ -114,6 +114,37 @@ export default function SuccessPage() {
 
   const orderRef = transactionId || params.get("orderRef") || "#ThankYou";
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pi = params.get("payment_intent");
+    const clientSecret = params.get("payment_intent_client_secret");
+    const redirectStatus = params.get("redirect_status");
+    const sessionId = params.get("session");
+
+    console.info("[success] callback params:", {
+      pi,
+      clientSecret,
+      redirectStatus,
+      sessionId,
+    });
+
+    // If Revolut Pay redirected us
+    if (redirectStatus === "succeeded" && pi) {
+      // Optionally notify backend
+      fetch("/api/purchases/confirm-redirect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          paymentIntentId: pi,
+          sessionId: sessionId || null,
+        }),
+      }).catch(() => {});
+
+      console.info("[success] Revolut Pay confirmed");
+    }
+  }, []);
+
   const parseJsonParam = (key) => {
     const raw = params.get(key);
     if (!raw) return null;

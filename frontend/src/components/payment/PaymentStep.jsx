@@ -4,7 +4,6 @@ import { createCheckoutSession, acknowledgePayment } from "../../api/checkout";
 import { loadStripeJs } from "./stripeLoader";
 import { useCurrency } from "../../context/CurrencyContext";
 import inferApiBaseUrl from "../../api/baseUrl";
-import { PaymentRequestButtonElement } from "@stripe/react-stripe-js";
 
 const PAYMENT_CURRENCY = "EUR";
 
@@ -12,6 +11,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
+  const [selectedStripeMethod, setSelectedStripeMethod] = useState("card");
   const navigate = useNavigate();
   const { selectedCurrency, rates, convertCurrency, formatCurrency } = useCurrency();
   const activeCurrency = selectedCurrency || "EUR";
@@ -28,14 +28,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [paypalError, setPaypalError] = useState(null);
   const [isPayPalProcessing, setIsPayPalProcessing] = useState(false);
   const paypalButtonsRef = useRef(null);
-  const paypalButtonsInstanceRef = useRef(null);
-  const paypalScriptAppendedRef = useRef(false);
-  const lastPayPalSessionRef = useRef(null);
   const apiBaseUrl = useMemo(() => inferApiBaseUrl(), []);
-  const [googlePayAvailable, setGooglePayAvailable] = useState(false);
-  const [paymentRequestAvailable, setPaymentRequestAvailable] = useState(false);
-  const [method, setMethod] = useState("stripe");
-  const paymentRequestRef = useRef(null);
 
   const areaSummary = useMemo(() => {
     const pixels = Math.round(area?.area || 0);
@@ -126,7 +119,6 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
         }
         if (cancelled) return;
         setStripeApi({ stripe, elements, paymentElement: null });
-        paymentRequestRef.current = null;
       })
       .catch((err) => {
         console.error("Stripe SDK error", err);
@@ -152,44 +144,6 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     };
   }, [stripeApi.elements]);
 
-  useEffect(() => {
-    const stripe = stripeApi.stripe;
-    const makeRequest = async () => {
-      if (!stripe) {
-        setGooglePayAvailable(false);
-        setPaymentRequestAvailable(false);
-        paymentRequestRef.current = null;
-        return;
-      }
-      try {
-        const pr = stripe.paymentRequest({
-          country: "IT",
-          currency: "eur",
-          total: { label: "Buy Your Pixels", amount: Math.round(totalPriceEUR * 100) },
-        });
-        paymentRequestRef.current = pr;
-        setPaymentRequestAvailable(true);
-        const result = await pr.canMakePayment();
-        if (!result || !result.googlePay) {
-          setGooglePayAvailable(false);
-          console.log("[pay] Google Pay available:", false);
-          console.log("[pay] PaymentRequest active:", true);
-          return;
-        }
-        setGooglePayAvailable(true);
-        console.log("[pay] Google Pay available:", true);
-        console.log("[pay] PaymentRequest active:", true);
-      } catch {
-        setGooglePayAvailable(false);
-        setPaymentRequestAvailable(false);
-        paymentRequestRef.current = null;
-        console.log("[pay] Google Pay available:", false);
-        console.log("[pay] PaymentRequest active:", false);
-      }
-    };
-    makeRequest();
-  }, [stripeApi.stripe, totalPriceEUR]);
-
   const buildPayPalPayload = useCallback(() => {
     const normalizedPrice = Number(price || 0);
     return {
@@ -210,87 +164,51 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
   const handleStripePay = async () => {
     if (!stripeApi.stripe || !stripeApi.elements || !stripeInfo?.clientSecret) return;
+
     setStripeProcessing(true);
     setError(null);
-    try {
-      const { error: stripeError, paymentIntent } = await stripeApi.stripe.confirmPayment({
-        elements: stripeApi.elements,
-        redirect: "if_required",
-      });
 
-      if (stripeError) {
-        window.alert("Your upload or link was rejected for security reasons. Please adjust and try again.");
-        fetch("/api/purchases/failed", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            pixels: areaSummary.pixelsRaw || 0,
-            totalAmount: totalPriceEUR,
-            currency: PAYMENT_CURRENCY,
-            errorCode: stripeError.code || null,
-            errorMessage: stripeError.message || null,
-            stripePaymentIntentId: paymentIntent?.id || null,
-          }),
-        }).catch(() => {});
-        console.error("[checkout] Stripe payment failed", stripeError);
-        setError(stripeError.message || "Stripe payment failed");
-        navigate("/failed", {
-          state: { reason: stripeError.message || "Stripe payment failed" },
+    try {
+      // CARD / APPLE PAY
+      if (selectedStripeMethod === "card") {
+        const { error: stripeError, paymentIntent } = await stripeApi.stripe.confirmPayment({
+          elements: stripeApi.elements,
+          redirect: "if_required",
         });
+
+        if (stripeError) {
+          console.error("[stripe][card] payment failed:", stripeError);
+          alert("Your upload or link was rejected for security reasons. Please adjust and try again.");
+          return;
+        }
+
+        console.info("[stripe][card] payment success:", paymentIntent?.id);
+        await acknowledgePayment(session.sessionId, "stripe", { paymentIntentId: paymentIntent.id });
+        onSuccess?.({ provider: "stripe", paymentIntent });
         return;
       }
 
-      try {
-        if (session?.sessionId) {
-          await acknowledgePayment(session.sessionId, "stripe", { paymentIntentId: paymentIntent.id });
-        }
-      } catch (ackErr) {
-        console.warn("Unable to acknowledge payment on the server", ackErr);
-      }
+      // REVOLUT PAY REDIRECT FLOW
+      if (selectedStripeMethod === "revolut") {
+        console.info("[revolut] Starting redirect flow");
 
-      console.log("[checkout] Stripe payment confirmed", {
-        amount: totalPriceEUR,
-        currency: PAYMENT_CURRENCY,
-        pixels: areaSummary?.pixelsFormatted,
-      });
-
-      onSuccess?.({ provider: "stripe", paymentIntent });
-
-      setTimeout(() => {
-        const query = new URLSearchParams({
-          order: session.sessionId,
-          value: totalPriceEUR.toString(),
-          pixels: String(areaSummary.pixelsRaw || 0),
-        }).toString();
-        navigate(`/success?${query}`, {
-          state: {
-            orderId: session.sessionId,
-            value: totalPriceEUR,
-            pixels: areaSummary.pixelsRaw || 0,
+        const { error } = await stripeApi.stripe.confirmPayment({
+          clientSecret: stripeInfo.clientSecret,
+          confirmParams: {
+            return_url: `https://yourpixels.online/success?session=${session.sessionId}`,
           },
         });
-      }, 600);
+
+        if (error) {
+          console.error("[revolut] Payment failed:", error);
+          alert("Revolut Pay could not complete your payment. Please try again.");
+        }
+
+        return; // Stripe handles redirect
+      }
     } catch (err) {
-      window.alert("Your upload or link was rejected for security reasons. Please adjust and try again.");
-      fetch("/api/purchases/failed", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          pixels: areaSummary.pixelsRaw || 0,
-          totalAmount: totalPriceEUR,
-          currency: PAYMENT_CURRENCY,
-          errorCode: null,
-          errorMessage: err.message || null,
-          stripePaymentIntentId: null,
-        }),
-      }).catch(() => {});
-      console.error("[checkout] Stripe payment failed", err);
-      setError(err.message || "Unexpected Stripe error");
-      navigate("/failed", {
-        state: { reason: err.message || "Unexpected Stripe error" },
-      });
+      console.error("[checkout] unexpected error:", err);
+      setError(err.message || "Unexpected payment error");
     } finally {
       setStripeProcessing(false);
     }
@@ -298,6 +216,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
   const showStripe = Boolean(stripeInfo?.clientSecret && stripeInfo?.publishableKey);
   const stripeReady = Boolean(showStripe && stripeApi.paymentElement);
+
   useEffect(() => {
     let cancelled = false;
     const loadConfig = async () => {
@@ -418,9 +337,13 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     buttons.render(container);
 
     return () => {
-      try { buttons.close(); } catch {}
+      try {
+        buttons.close();
+      } catch (err) {
+        console.warn("PayPal Buttons cleanup issue", err);
+      }
     };
-  }, [paypalConfig, paypalScriptLoaded, session?.sessionId]);
+  }, [apiBaseUrl, buildPayPalPayload, handlePayPalSuccess, paypalConfig, paypalScriptLoaded, session?.sessionId]);
 
   return (
     <div className="payment-step">
@@ -462,25 +385,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
           {showStripe && (
             <div className="payment-provider-card">
-              <h4>Card / Apple Pay / Google Pay</h4>
-              {googlePayAvailable && paymentRequestAvailable && (
-                <div className="method-tabs" style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
-                  <button
-                    type="button"
-                    className={`popup-skip method-tab ${method === "stripe" ? "active" : ""}`}
-                    onClick={() => setMethod("stripe")}
-                  >
-                    Card / Link
-                  </button>
-                  <button
-                    type="button"
-                    className={`popup-skip method-tab ${method === "google_pay" ? "active" : ""}`}
-                    onClick={() => setMethod("google_pay")}
-                  >
-                    Google Pay
-                  </button>
-                </div>
-              )}
+              <h4>Card / Apple Pay</h4>
               <div
                 style={{
                   padding: "16px",
@@ -490,22 +395,13 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
                   marginBottom: "12px",
                 }}
               >
-                {method === "google_pay" && googlePayAvailable && paymentRequestAvailable ? (
-                  <PaymentRequestButtonElement options={{ paymentRequest: paymentRequestRef.current }} />
-                ) : (
-                  <>
-                    <div ref={paymentElementRef} style={{ minHeight: "80px" }} />
-                    {!stripeReady && <div className="payment-loader">Preparing card methods…</div>}
-                  </>
-                )}
+                <div ref={paymentElementRef} style={{ minHeight: "80px" }} />
+                {!stripeReady && <div className="payment-loader">Preparing card methods…</div>}
               </div>
               <button
                 type="button"
                 className="popup-continue"
-                disabled={
-                  stripeProcessing ||
-                  (!stripeReady && !(method === "google_pay" && googlePayAvailable && paymentRequestAvailable))
-                }
+                disabled={stripeProcessing || !stripeReady}
                 onClick={handleStripePay}
               >
                 {stripeProcessing ? "Processing…" : "Pay with card"}
@@ -538,9 +434,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
             )}
           </section>
 
-          {!showStripe && (
-            <div className="payment-error">No payment methods are available right now.</div>
-          )}
+          {!showStripe && <div className="payment-error">No payment methods are available right now.</div>}
 
           {error && status === "ready" && (
             <div className="payment-error" role="alert">
