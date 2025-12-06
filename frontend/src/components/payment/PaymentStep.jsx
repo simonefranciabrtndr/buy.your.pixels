@@ -11,8 +11,8 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [session, setSession] = useState(null);
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState(null);
-  const [selectedStripeMethod, setSelectedStripeMethod] = useState("card");
   const navigate = useNavigate();
+
   const { selectedCurrency, rates, convertCurrency, formatCurrency } = useCurrency();
   const activeCurrency = selectedCurrency || "EUR";
   const totalPriceEUR = Number(price || 0);
@@ -23,11 +23,15 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const [stripeApi, setStripeApi] = useState({ stripe: null, elements: null, paymentElement: null });
   const [stripeProcessing, setStripeProcessing] = useState(false);
   const paymentElementRef = useRef(null);
+
   const [paypalConfig, setPaypalConfig] = useState(null);
   const [paypalScriptLoaded, setPaypalScriptLoaded] = useState(false);
   const [paypalError, setPaypalError] = useState(null);
   const [isPayPalProcessing, setIsPayPalProcessing] = useState(false);
   const paypalButtonsRef = useRef(null);
+  const paypalButtonsInstanceRef = useRef(null);
+  const lastPayPalSessionRef = useRef(null);
+
   const apiBaseUrl = useMemo(() => inferApiBaseUrl(), []);
 
   const areaSummary = useMemo(() => {
@@ -38,6 +42,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     };
   }, [area]);
 
+  // Analytics
   useEffect(() => {
     if (typeof window !== "undefined" && typeof window.gtag === "function") {
       window.gtag("event", "begin_checkout", {
@@ -50,13 +55,16 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     }
   }, [totalPriceEUR]);
 
+  // Create/refresh checkout session
   const reloadSession = useCallback(async () => {
     if (!price || !area) return;
+
     setStatus("loading");
     setError(null);
     setPaypalError(null);
     setIsPayPalProcessing(false);
     setStripeApi({ stripe: null, elements: null, paymentElement: null });
+
     try {
       const response = await createCheckoutSession({
         area,
@@ -78,6 +86,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
   const stripeInfo = session?.stripe;
 
+  // Load Stripe + Elements
   useEffect(() => {
     let cancelled = false;
     if (!stripeInfo?.publishableKey || !stripeInfo?.clientSecret) return undefined;
@@ -130,8 +139,10 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     };
   }, [stripeInfo?.publishableKey, stripeInfo?.clientSecret]);
 
+  // Mount Payment Element (tabs: card, wallets incl. Apple Pay / Revolut Pay / Link)
   useEffect(() => {
     if (!stripeApi.elements || !paymentElementRef.current) return undefined;
+
     const paymentElement = stripeApi.elements.create("payment", {
       layout: "tabs",
     });
@@ -144,6 +155,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     };
   }, [stripeApi.elements]);
 
+  // Build payload for PayPal backend
   const buildPayPalPayload = useCallback(() => {
     const normalizedPrice = Number(price || 0);
     return {
@@ -162,53 +174,107 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     };
   }, [area, price, session?.sessionId]);
 
+  // Main Stripe pay handler (cards + wallets, including Revolut Pay)
   const handleStripePay = async () => {
-    if (!stripeApi.stripe || !stripeApi.elements || !stripeInfo?.clientSecret) return;
+    if (!stripeApi.stripe || !stripeApi.elements || !stripeInfo?.clientSecret || !session?.sessionId) return;
 
     setStripeProcessing(true);
     setError(null);
 
+    // Build return_url for redirect-based methods (Revolut Pay, 3DS, etc.)
+    const returnUrl = new URL("https://yourpixels.online/payment/stripe/return");
+    returnUrl.searchParams.set("session", session.sessionId);
+
     try {
-      // CARD / APPLE PAY
-      if (selectedStripeMethod === "card") {
-        const { error: stripeError, paymentIntent } = await stripeApi.stripe.confirmPayment({
-          elements: stripeApi.elements,
-          redirect: "if_required",
+      const { error: stripeError, paymentIntent } = await stripeApi.stripe.confirmPayment({
+        elements: stripeApi.elements,
+        redirect: "if_required",
+        confirmParams: {
+          return_url: returnUrl.toString(),
+        },
+      });
+
+      // If Stripe reports an immediate error, show security message + log failed purchase
+      if (stripeError) {
+        window.alert("Your upload or link was rejected for security reasons. Please adjust and try again.");
+        fetch("/api/purchases/failed", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            pixels: areaSummary.pixelsRaw || 0,
+            totalAmount: totalPriceEUR,
+            currency: PAYMENT_CURRENCY,
+            errorCode: stripeError.code || null,
+            errorMessage: stripeError.message || null,
+            stripePaymentIntentId: paymentIntent?.id || null,
+          }),
+        }).catch(() => {});
+        console.error("[checkout] Stripe payment failed", stripeError);
+        setError(stripeError.message || "Stripe payment failed");
+        navigate("/failed", {
+          state: { reason: stripeError.message || "Stripe payment failed" },
         });
-
-        if (stripeError) {
-          console.error("[stripe][card] payment failed:", stripeError);
-          alert("Your upload or link was rejected for security reasons. Please adjust and try again.");
-          return;
-        }
-
-        console.info("[stripe][card] payment success:", paymentIntent?.id);
-        await acknowledgePayment(session.sessionId, "stripe", { paymentIntentId: paymentIntent.id });
-        onSuccess?.({ provider: "stripe", paymentIntent });
         return;
       }
 
-      // REVOLUT PAY REDIRECT FLOW
-      if (selectedStripeMethod === "revolut") {
-        console.info("[revolut] Starting redirect flow");
+      // For redirect-based methods (e.g. Revolut Pay), Stripe may handle navigation via return_url.
+      // In that case paymentIntent might be null here and finalization happens on /payment/stripe/return.
+      if (!paymentIntent) {
+        return;
+      }
 
-        const { error } = await stripeApi.stripe.confirmPayment({
-          clientSecret: stripeInfo.clientSecret,
-          confirmParams: {
-            return_url: `https://yourpixels.online/success?session=${session.sessionId}`,
+      // Non-redirect flows: acknowledge + go to success
+      try {
+        if (session?.sessionId) {
+          await acknowledgePayment(session.sessionId, "stripe", { paymentIntentId: paymentIntent.id });
+        }
+      } catch (ackErr) {
+        console.warn("Unable to acknowledge payment on the server", ackErr);
+      }
+
+      console.log("[checkout] Stripe payment confirmed", {
+        amount: totalPriceEUR,
+        currency: PAYMENT_CURRENCY,
+        pixels: areaSummary?.pixelsFormatted,
+      });
+
+      onSuccess?.({ provider: "stripe", paymentIntent });
+
+      setTimeout(() => {
+        const query = new URLSearchParams({
+          order: session.sessionId,
+          value: totalPriceEUR.toString(),
+          pixels: String(areaSummary.pixelsRaw || 0),
+        }).toString();
+        navigate(`/success?${query}`, {
+          state: {
+            orderId: session.sessionId,
+            value: totalPriceEUR,
+            pixels: areaSummary.pixelsRaw || 0,
           },
         });
-
-        if (error) {
-          console.error("[revolut] Payment failed:", error);
-          alert("Revolut Pay could not complete your payment. Please try again.");
-        }
-
-        return; // Stripe handles redirect
-      }
+      }, 600);
     } catch (err) {
-      console.error("[checkout] unexpected error:", err);
-      setError(err.message || "Unexpected payment error");
+      window.alert("Your upload or link was rejected for security reasons. Please adjust and try again.");
+      fetch("/api/purchases/failed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          pixels: areaSummary.pixelsRaw || 0,
+          totalAmount: totalPriceEUR,
+          currency: PAYMENT_CURRENCY,
+          errorCode: null,
+          errorMessage: err.message || null,
+          stripePaymentIntentId: null,
+        }),
+      }).catch(() => {});
+      console.error("[checkout] Stripe payment failed", err);
+      setError(err.message || "Unexpected Stripe error");
+      navigate("/failed", {
+        state: { reason: err.message || "Unexpected Stripe error" },
+      });
     } finally {
       setStripeProcessing(false);
     }
@@ -217,8 +283,10 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
   const showStripe = Boolean(stripeInfo?.clientSecret && stripeInfo?.publishableKey);
   const stripeReady = Boolean(showStripe && stripeApi.paymentElement);
 
+  // Load PayPal config from backend
   useEffect(() => {
     let cancelled = false;
+
     const loadConfig = async () => {
       try {
         const response = await fetch(`${apiBaseUrl}/paypal/config`, {
@@ -238,14 +306,20 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
         setPaypalError("PayPal is unavailable right now.");
       }
     };
+
     loadConfig();
     return () => {
       cancelled = true;
     };
   }, [apiBaseUrl]);
 
+  // Inject PayPal SDK script
   useEffect(() => {
     if (!paypalConfig?.enabled || !paypalConfig?.clientId) return;
+
+    const scriptUrl = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
+      paypalConfig.clientId
+    )}&currency=${paypalConfig.currency || "EUR"}&intent=capture`;
 
     const existing = document.querySelector("script[data-paypal-sdk]");
     if (existing && window.paypal) {
@@ -258,9 +332,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     }
 
     const script = document.createElement("script");
-    script.src = `https://www.paypal.com/sdk/js?client-id=${encodeURIComponent(
-      paypalConfig.clientId
-    )}&currency=${paypalConfig.currency || "EUR"}&intent=capture`;
+    script.src = scriptUrl;
     script.async = true;
     script.dataset.paypalSdk = "true";
 
@@ -290,60 +362,110 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     [areaSummary.pixelsRaw, navigate, onSuccess, session?.sessionId, totalPriceEUR]
   );
 
+  // Render PayPal buttons once per session
   useEffect(() => {
-    if (!paypalConfig?.enabled) return;
-    if (!paypalScriptLoaded) return;
-    if (!window.paypal) return;
+    if (!paypalConfig?.enabled || !paypalScriptLoaded || typeof window === "undefined" || !window.paypal) return undefined;
 
     const container = paypalButtonsRef.current;
-    if (!container) return;
+    if (!container) return undefined;
+
+    const currentSessionKey = session?.sessionId || "no-session";
+    const alreadyRendered =
+      paypalButtonsInstanceRef.current && lastPayPalSessionRef.current === currentSessionKey;
+    if (alreadyRendered) return undefined;
+
+    if (paypalButtonsInstanceRef.current) {
+      try {
+        paypalButtonsInstanceRef.current.close();
+      } catch {
+        /* noop */
+      }
+      paypalButtonsInstanceRef.current = null;
+    }
 
     container.innerHTML = "";
 
     const buttons = window.paypal.Buttons({
       style: { layout: "vertical" },
       createOrder: async () => {
-        const payload = buildPayPalPayload();
-        const res = await fetch(`${apiBaseUrl}/paypal/create-order`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(payload),
-        });
-        const json = await res.json();
-        if (!json?.success) throw new Error("createOrder failed");
-        return json.orderId;
+        try {
+          setPaypalError(null);
+          setIsPayPalProcessing(true);
+          const payload = buildPayPalPayload();
+          const response = await fetch(`${apiBaseUrl}/paypal/create-order`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(payload),
+          });
+          const json = await response.json();
+          if (!json?.success || !json?.orderId) {
+            setPaypalError("Could not create PayPal order.");
+            setIsPayPalProcessing(false);
+            throw new Error(json?.error || "PayPal order creation failed");
+          }
+          return json.orderId;
+        } catch (err) {
+          console.error("PayPal create order failed", err);
+          setPaypalError("Could not create PayPal order.");
+          setIsPayPalProcessing(false);
+          throw err;
+        }
       },
       onApprove: async (data) => {
-        const res = await fetch(`${apiBaseUrl}/paypal/capture-order`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            orderId: data?.orderID,
-            purchaseId: session?.sessionId,
-          }),
-        });
-        const json = await res.json();
-        if (!json?.success) throw new Error("captureOrder failed");
-        acknowledgePayment(session?.sessionId, "paypal", { orderId: data?.orderID });
-        handlePayPalSuccess(data?.orderID);
+        try {
+          const response = await fetch(`${apiBaseUrl}/paypal/capture-order`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ orderId: data?.orderID, purchaseId: session?.sessionId }),
+          });
+          const json = await response.json();
+          if (!json?.success) {
+            setPaypalError("PayPal payment failed.");
+            throw new Error(json?.error || "PayPal capture failed");
+          }
+          if (session?.sessionId) {
+            acknowledgePayment(session.sessionId, "paypal", { orderId: data?.orderID }).catch(() => {});
+          }
+          handlePayPalSuccess(data?.orderID);
+        } catch (err) {
+          console.error("PayPal capture error", err);
+          setPaypalError("PayPal payment failed.");
+          throw err;
+        } finally {
+          setIsPayPalProcessing(false);
+        }
       },
-      onError: () => {
+      onError: (err) => {
+        console.error("PayPal error", err);
         setPaypalError("PayPal error. Please try again.");
+        setIsPayPalProcessing(false);
+      },
+      onCancel: () => {
+        setIsPayPalProcessing(false);
       },
     });
 
+    lastPayPalSessionRef.current = currentSessionKey;
+    paypalButtonsInstanceRef.current = buttons;
     buttons.render(container);
 
     return () => {
       try {
         buttons.close();
-      } catch (err) {
-        console.warn("PayPal Buttons cleanup issue", err);
+      } catch {
+        /* noop */
       }
     };
-  }, [apiBaseUrl, buildPayPalPayload, handlePayPalSuccess, paypalConfig, paypalScriptLoaded, session?.sessionId]);
+  }, [
+    apiBaseUrl,
+    buildPayPalPayload,
+    handlePayPalSuccess,
+    paypalConfig?.enabled,
+    paypalScriptLoaded,
+    session?.sessionId,
+  ]);
 
   return (
     <div className="payment-step">
@@ -351,6 +473,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       <p className="payment-step-sub">Choose any available method to finalize your purchase.</p>
 
       {status === "loading" && <div className="payment-loader">Preparing checkout…</div>}
+
       {status === "error" && (
         <div className="payment-error" role="alert">
           {error || "Something went wrong."}
