@@ -156,7 +156,7 @@ export default function LegalMenu({
           </p>
         </header>
 
-        <HamburgerMenu />
+        <HamburgerMenu pricePerPixelDisplay={pricePerPixelDisplay} />
 
         <div className="legal-stats-grid">
           {summaryMetrics.map((metric) => {
