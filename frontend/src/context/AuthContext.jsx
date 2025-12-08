@@ -54,8 +54,60 @@ export function AuthProvider({ children }) {
     }
   }, [API_URL]);
 
+  const login = useCallback(
+    async (email, password) => {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || "Unable to login");
+      }
+
+      const data = await res.json();
+      await refreshUser();
+      window.dispatchEvent(new CustomEvent("auth-updated"));
+      return data;
+    },
+    [API_URL, refreshUser]
+  );
+
+  const register = useCallback(
+    async (email, password) => {
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || "Unable to register");
+      }
+
+      const data = await res.json();
+      await login(email, password);
+      return data;
+    },
+    [API_URL, login]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        logout,
+        refreshUser,
+        login,
+        register,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
