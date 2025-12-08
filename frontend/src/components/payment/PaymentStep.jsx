@@ -180,6 +180,7 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
     setStripeProcessing(true);
     setError(null);
+    let claimToken = null;
 
     // Build return_url for redirect-based methods (Revolut Pay, 3DS, etc.)
     const returnUrl = new URL("https://yourpixels.online/payment/stripe/return");
@@ -248,7 +249,8 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
 
           // 2. Acknowledge server (optional legacy)
           if (session?.sessionId) {
-            await acknowledgePayment(session.sessionId, "stripe", { paymentIntentId: paymentIntent.id });
+            const ack = await acknowledgePayment(session.sessionId, "stripe", { paymentIntentId: paymentIntent.id });
+            claimToken = ack?.claimToken || null;
           }
         }
       } catch (confirmErr) {
@@ -264,11 +266,15 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       onSuccess?.({ provider: "stripe", paymentIntent });
 
       setTimeout(() => {
-        const query = new URLSearchParams({
+        const searchParams = new URLSearchParams({
           order: session.sessionId,
           value: totalPriceEUR.toString(),
           pixels: String(areaSummary.pixelsRaw || 0),
-        }).toString();
+        });
+        if (claimToken) {
+          searchParams.set("claim", claimToken);
+        }
+        const query = searchParams.toString();
         navigate(`/success?${query}`, {
           state: {
             orderId: session.sessionId,
@@ -367,11 +373,15 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     (orderReference) => {
       onSuccess?.({ provider: "paypal", orderId: orderReference });
       setTimeout(() => {
-        const query = new URLSearchParams({
+        const searchParams = new URLSearchParams({
           order: session?.sessionId || orderReference,
           value: totalPriceEUR.toString(),
           pixels: String(areaSummary.pixelsRaw || 0),
-        }).toString();
+        });
+        if (lastPayPalSessionRef.current && lastPayPalSessionRef.current.claimToken) {
+          searchParams.set("claim", lastPayPalSessionRef.current.claimToken);
+        }
+        const query = searchParams.toString();
         navigate(`/success?${query}`, {
           state: {
             orderId: session?.sessionId || orderReference,
