@@ -76,14 +76,7 @@ export default function AuthModal({ onClose }) {
               Continue with Google
             </button>
           )}
-          <button
-            type="button"
-            className="social-btn apple-btn"
-            onClick={() => startOAuth("apple")}
-          >
-            <span className="social-icon"></span>
-            Continue with Apple
-          </button>
+          {/* Apple login temporarily disabled */}
         </div>
 
         <div className="auth-divider">
