@@ -141,9 +141,6 @@ export default function LegalMenu({
         <header className="legal-menu-header">
           <div className="legal-topbar">
             <p className="legal-menu-kicker">Legal Documentation</p>
-            <span className="legal-price-chip text-blue-400 text-sm opacity-80">
-              Price per pixel = {pricePerPixelDisplay}
-            </span>
             <button
               type="button"
               className="legal-close-btn"

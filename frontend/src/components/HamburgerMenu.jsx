@@ -26,7 +26,10 @@ export default function HamburgerMenu() {
           <h3>Currency</h3>
           <p>Select how prices are displayed across the site.</p>
         </div>
-        <CurrencyToggle />
+        <div className="currency-toggle-block">
+          <div className="price-per-pixel-chip">€0.02 / px</div>
+          <CurrencyToggle />
+        </div>
       </section>
       {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
     </>
