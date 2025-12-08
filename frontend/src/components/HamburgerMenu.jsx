@@ -11,17 +11,6 @@ export default function HamburgerMenu({ pricePerPixelDisplay }) {
   return (
     <>
       <section className="hamburger-menu">
-        {!currentUser ? (
-          <div className="legal-card glassy" onClick={() => setShowAuth(true)}>
-            <h3 className="legal-card-title">Log In / Sign Up</h3>
-          </div>
-        ) : (
-          <div className="legal-card glassy">
-            <h3 className="legal-card-title">Logged in as {currentUser.email}</h3>
-            <button className="logout-btn" onClick={logout}>Log out</button>
-          </div>
-        )}
-
         <div className="hamburger-menu-text">
           <h3>Currency</h3>
           <p>Select how prices are displayed across the site.</p>

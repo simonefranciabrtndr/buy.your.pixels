@@ -95,7 +95,7 @@ export default function LegalMenu({
               </div>
             </div>
           ) : (
-            <p className="legal-stat-value">Create profile</p>
+            <p className="legal-stat-value">Log In / Sign Up</p>
           ),
       },
     ];
