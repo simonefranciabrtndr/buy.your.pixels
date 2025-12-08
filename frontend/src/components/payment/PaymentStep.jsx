@@ -233,13 +233,26 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
       // For other redirect flows handled entirely by Stripe (rare), paymentIntent might be null.
       if (!paymentIntent) return;
 
-      // Non-redirect flows: acknowledge + go to success
+      // Non-redirect flows: save pixels + acknowledge + go to success
       try {
-        if (session?.sessionId) {
-          await acknowledgePayment(session.sessionId, "stripe", { paymentIntentId: paymentIntent.id });
+        if (paymentIntent?.status === "succeeded") {
+          // 1. Save pixels on backend
+          await fetch("/api/pixels/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({
+              payment_intent_id: paymentIntent.id,
+            }),
+          });
+
+          // 2. Acknowledge server (optional legacy)
+          if (session?.sessionId) {
+            await acknowledgePayment(session.sessionId, "stripe", { paymentIntentId: paymentIntent.id });
+          }
         }
-      } catch (ackErr) {
-        console.warn("Unable to acknowledge payment on the server", ackErr);
+      } catch (confirmErr) {
+        console.error("Pixel save error:", confirmErr);
       }
 
       console.log("[checkout] Stripe payment confirmed", {
