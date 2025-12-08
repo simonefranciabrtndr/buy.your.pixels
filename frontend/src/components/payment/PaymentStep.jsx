@@ -392,21 +392,19 @@ export default function PaymentStep({ area, price, onBack, onCancel, onSuccess }
     if (!container) return undefined;
 
     const currentSessionKey = session?.sessionId || "no-session";
-    const alreadyRendered =
-      paypalButtonsInstanceRef.current && lastPayPalSessionRef.current === currentSessionKey;
-    if (alreadyRendered) return undefined;
 
+    // Always reset container to avoid stale PayPal buttons
+    container.innerHTML = "";
+
+    // Destroy previous instance if exists
     if (paypalButtonsInstanceRef.current) {
       try {
         paypalButtonsInstanceRef.current.close();
-      } catch {
-        /* noop */
-      }
+      } catch {}
       paypalButtonsInstanceRef.current = null;
     }
 
-    container.innerHTML = "";
-
+    // Create fresh PayPal buttons every time session changes
     const buttons = window.paypal.Buttons({
       style: { layout: "vertical" },
       createOrder: async () => {
