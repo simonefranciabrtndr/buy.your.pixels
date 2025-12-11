@@ -1,7 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
-import AuthModal from "../components/AuthModal";
 import "./Success.css";
 
 const isFiniteNumber = (val) => Number.isFinite(Number(val));
@@ -54,8 +52,6 @@ export default function SuccessPage() {
   const navigate = useNavigate();
   const [saveMessage, setSaveMessage] = useState(null);
   const saveAttemptedRef = useRef(false);
-  const { user } = useAuth();
-  const [showAuth, setShowAuth] = useState(false);
   const stateData = location.state || {};
   const orderId = params.get("order");
   const queryValue = params.get("value");
@@ -279,19 +275,13 @@ export default function SuccessPage() {
         </div>
         {saveMessage && <p className="success-subtitle">{saveMessage}</p>}
 
-        {!user && (
-          <div className="success-profile-box glassy">
-            <h3 className="spb-title">Save your pixels</h3>
-            <p className="spb-sub">
-              Create a free profile to secure this purchase and manage your pixel blocks.
-            </p>
-            <button className="spb-btn" onClick={() => setShowAuth(true)}>
-              Log In / Sign Up
-            </button>
-          </div>
-        )}
-
-        {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+        <div className="success-profile-box glassy">
+          <h3 className="spb-title">Save your pixels</h3>
+          <p className="spb-sub">
+            You can create a free profile at any time from the main menu (Log In / Sign Up)
+            to secure this purchase and manage your pixel blocks.
+          </p>
+        </div>
 
         <div className="success-actions">
           <a className="btn-primary" href="https://yourpixels.online">
