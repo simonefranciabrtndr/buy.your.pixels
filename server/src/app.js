@@ -17,7 +17,7 @@ import {
   updatePurchaseModeration,
   listPendingModeration,
 } from "./purchaseStore.js";
-import { sendPurchaseReceiptEmail, sendPurchaseFailureEmail, sendSupportAlertEmail, sendTestEmail } from "./notifications.js";
+import { sendPurchaseReceiptEmail, sendPurchaseFailureEmail, sendSupportAlertEmail, sendTestEmail, sendProfileWelcomeEmail } from "./notifications.js";
 import { createProfileRecord, findProfileByEmail, findProfileById } from "./profileStore.js";
 import authRouter from "./routes/auth.js";
 import { authMiddleware } from "./middleware/auth.js";
@@ -32,6 +32,9 @@ import { runSelfTests, getLastReport, getSelfTestHistory } from "./selfTest/runn
 import * as paypalClient from "./paypalClient.js";
 import { sessions } from "./sessionStore.js";
 import { registerPayPalWebhook } from "./webhooks/paypalWebhook.js";
+import muro1Routes from "./routes/muro1Routes.js";
+import { claimPurchasesByToken } from "./profileStore.js";
+import pixelsRouter from "./routes/pixels.js";
 
 const maskValue = (v) => {
   if (!v) return null;
@@ -368,6 +371,7 @@ export const createApp = () => {
   });
 
   app.use("/api/auth", authRouter);
+  app.use("/api/pixels", pixelsRouter);
 
   app.get("/api/self-test/run", selfTestRateLimit, async (_req, res) => {
     try {
@@ -702,6 +706,15 @@ export const createApp = () => {
       const token = createProfileSession(profile.id);
       const purchases = await listPurchasesByProfile(profile.id);
       res.json({ token, profile, purchases });
+
+      // Fire-and-forget welcome email
+      Promise.resolve().then(async () => {
+        try {
+          await sendProfileWelcomeEmail(profile);
+        } catch (err) {
+          console.error("Welcome email failed:", err);
+        }
+      });
     } catch (error) {
       console.error("Profile registration failed", error);
       res.status(500).json({ error: "Unable to complete profile registration" });
@@ -728,6 +741,36 @@ export const createApp = () => {
     } catch (error) {
       console.error("Profile login failed", error);
       res.status(500).json({ error: "Unable to login" });
+    }
+  });
+
+  app.post("/api/profile/claim-purchases", async (req, res) => {
+    try {
+      if (!req.user?.email) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+      const claimToken = req.body?.claimToken;
+      if (!claimToken) {
+        return res.status(400).json({ error: "Missing claim token" });
+      }
+
+      const result = await claimPurchasesByToken({
+        email: req.user.email,
+        claimToken,
+      });
+
+      if (!result.claimedCount) {
+        return res.status(404).json({ error: "No purchases found for this token" });
+      }
+
+      return res.json({
+        ok: true,
+        claimedCount: result.claimedCount,
+        profile: result.profile,
+      });
+    } catch (error) {
+      console.error("Claim purchases error", error);
+      return res.status(500).json({ error: "Unable to claim purchases" });
     }
   });
 
@@ -1036,6 +1079,7 @@ export const createApp = () => {
     try {
       const profileId = attachProfileFromAuth(req);
       req.profileId = profileId;
+      const claimToken = crypto.randomUUID();
       const saved = await recordPurchase({
         id: payload.id,
         rect: payload.rect,
@@ -1049,6 +1093,7 @@ export const createApp = () => {
         nsfw: nsfwFlag,
         paymentIntentId: payload.paymentIntentId || payload.payment_intent_id || null,
         profileId,
+        claimToken,
       });
       const profileRecord = profileId ? await findProfileById(profileId) : null;
       console.log("[purchases] Recorded purchase", {
@@ -1060,7 +1105,7 @@ export const createApp = () => {
       if (dedupKey) {
         purchaseDedupKeys.add(dedupKey);
       }
-      res.status(201).json(saved);
+      res.status(201).json({ ...saved, claimToken });
 
       // fire-and-forget email (does not block the response)
       const profileForEmail = profileRecord?.profile || null;
@@ -1141,6 +1186,9 @@ export const createApp = () => {
       env: result,
     });
   });
+
+  // MURO 1: free wall (MongoDB) endpoints
+  app.use("/api/muro1", muro1Routes);
 
   registerPayPalWebhook(app);
 

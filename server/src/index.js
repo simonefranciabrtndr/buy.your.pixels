@@ -2,6 +2,7 @@ import { createApp } from "./app.js";
 import { config } from "./config.js";
 import { initializePurchaseStore } from "./purchaseStore.js";
 import { ensureIndexes } from "./utils/dbMaintenance.js";
+import { connectMongo } from "./db/mongo.js";
 
 // FIX: critical env checks
 const requiredEnv = ["JWT_SECRET", "PROFILE_TOKEN_SECRET"];
@@ -23,6 +24,8 @@ const port = config.port || process.env.PORT || 4000;
 
 const start = async () => {
   try {
+    // MURO 1 (free wall) uses MongoDB; MURO 2 (paid) keeps Postgres flows untouched.
+    await connectMongo();
     await initializePurchaseStore();
     try {
       await ensureIndexes();

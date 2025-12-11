@@ -1,4 +1,6 @@
 import { v4 as uuid } from "uuid";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { safeQuery } from "./utils/safeQuery.js";
 
 let pool = null;
@@ -42,6 +44,19 @@ export const initializeProfileStore = async (sharedPool) => {
     END
     $$;
   `);
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'purchases' AND column_name = 'claim_token'
+      ) THEN
+        ALTER TABLE purchases ADD COLUMN claim_token TEXT UNIQUE;
+      END IF;
+    END
+    $$;
+  `);
 };
 
 export const createProfileRecord = async ({ email, username, passwordHash, avatarData, newsletter }) => {
@@ -72,4 +87,45 @@ export const findProfileByEmail = async (email) => {
 export const findProfileById = async (id) => {
   const { rows } = await safeQuery(pool, `SELECT * FROM profiles WHERE id = $1 LIMIT 1`, [id]);
   return rows.length ? { raw: rows[0], profile: mapProfile(rows[0]) } : null;
+};
+
+const ensureProfileForEmail = async (email) => {
+  const normalizedEmail = String(email || "").toLowerCase();
+  if (!normalizedEmail) {
+    throw new Error("Missing email for profile");
+  }
+
+  const existing = await findProfileByEmail(normalizedEmail);
+  if (existing?.profile) {
+    return existing.profile;
+  }
+
+  const id = uuid();
+  const username = normalizedEmail.split("@")[0] || `pixel-user-${id.slice(0, 8)}`;
+  const fakeHash = await bcrypt.hash(crypto.randomUUID(), 12);
+
+  const { rows } = await safeQuery(
+    pool,
+    "INSERT INTO profiles (id, email, username, password_hash, avatar_data, newsletter) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;",
+    [id, normalizedEmail, username, fakeHash, null, false]
+  );
+  return mapProfile(rows[0]);
+};
+
+export const claimPurchasesByToken = async ({ email, claimToken }) => {
+  const normalizedToken = String(claimToken || "").trim();
+  if (!normalizedToken) {
+    throw new Error("Missing claim token");
+  }
+
+  const profile = await ensureProfileForEmail(email);
+  const { rows } = await safeQuery(
+    pool,
+    "UPDATE purchases SET profile_id = $1 WHERE claim_token = $2 AND (profile_id IS NULL OR profile_id = $1) RETURNING *;",
+    [profile.id, normalizedToken]
+  );
+  return {
+    claimedCount: rows.length,
+    profile,
+  };
 };

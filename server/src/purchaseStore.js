@@ -1,5 +1,6 @@
 import pg from "pg";
 import { v4 as uuid } from "uuid";
+import crypto from "crypto";
 import { config } from "./config.js";
 import { initializeProfileStore } from "./profileStore.js";
 import { initializeUserStore } from "./userStore.js";
@@ -82,6 +83,7 @@ export const recordPurchase = async (purchase) => {
   }
 
   const normalizedNsfw = typeof purchase.nsfw === "boolean" ? purchase.nsfw : null;
+  const claimToken = purchase.claimToken || crypto.randomUUID();
   const values = [
     purchaseId,
     JSON.stringify(rect),
@@ -95,6 +97,7 @@ export const recordPurchase = async (purchase) => {
     normalizedNsfw,
     paymentIntentId,
     purchase.profileId || null,
+    claimToken,
   ];
 
   try {
@@ -113,9 +116,10 @@ export const recordPurchase = async (purchase) => {
           preview_data,
           nsfw,
           payment_intent_id,
-          profile_id
+          profile_id,
+          claim_token
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         ON CONFLICT (id)
         DO UPDATE SET
           rect = EXCLUDED.rect,
@@ -128,13 +132,14 @@ export const recordPurchase = async (purchase) => {
           preview_data = EXCLUDED.preview_data,
           nsfw = EXCLUDED.nsfw,
           payment_intent_id = COALESCE(EXCLUDED.payment_intent_id, purchases.payment_intent_id),
-          profile_id = COALESCE(EXCLUDED.profile_id, purchases.profile_id)
+          profile_id = COALESCE(EXCLUDED.profile_id, purchases.profile_id),
+          claim_token = COALESCE(EXCLUDED.claim_token, purchases.claim_token)
         RETURNING *;
       `,
       values
     );
 
-    return normalizePurchase(rows[0]);
+    return { ...normalizePurchase(rows[0]), claimToken };
   } catch (err) {
     if (err?.code === "23505") {
       const { rows: existingRows } = await safeQuery(db, "SELECT * FROM purchases WHERE id = $1 LIMIT 1", [purchaseId]);

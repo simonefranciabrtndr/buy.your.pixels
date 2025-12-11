@@ -155,6 +155,50 @@ export async function sendPurchaseFailureEmail(profileOrUser, failureData = {}) 
   }
 }
 
+export async function sendProfileWelcomeEmail(profile) {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("⚠️ No RESEND_API_KEY set — skipping welcome email");
+    return;
+  }
+
+  const appBaseUrl = config.baseUrl || process.env.APP_BASE_URL || "https://yourpixels.online";
+  const recipientEmail = profile?.email;
+  if (!recipientEmail) {
+    console.warn("[mail] welcome email skipped; no recipient email");
+    return;
+  }
+
+  const username = profile?.username || recipientEmail.split("@")[0] || "there";
+
+  const contentHtml = `
+    <p style="margin:0 0 12px;">Hi ${username},</p>
+    <p style="margin:0 0 12px;">Welcome to yourpixels.online! Thanks for creating a profile.</p>
+    <p style="margin:0 0 12px;">Your future pixel purchases can be attached to this profile, and you can return anytime to manage your blocks, links, and uploads.</p>
+    <p style="margin:0;">We’re excited to see what you build on the wall.</p>
+  `;
+
+  const html = renderBaseEmailLayout({
+    title: "Welcome to Your Pixels ✨",
+    subtitle: "Your new profile is ready.",
+    contentHtml,
+    primaryCtaLabel: "Open your profile",
+    primaryCtaHref: appBaseUrl,
+    footerNote: "You received this email because you created a profile on yourpixels.online.",
+  });
+
+  try {
+    await resend.emails.send({
+      from: "Buy Your Pixels <noreply@yourpixels.online>",
+      to: recipientEmail,
+      subject: "Welcome to Your Pixels",
+      html,
+    });
+    console.log("[mail] welcome email sent", { email: recipientEmail });
+  } catch (err) {
+    console.error("[mail] welcome email failed", { email: recipientEmail, error: err.message });
+  }
+}
+
 export async function sendSupportAlertEmail(alertData = {}) {
   const recipient = process.env.SUPPORT_ALERT_EMAIL;
   if (!recipient) {
